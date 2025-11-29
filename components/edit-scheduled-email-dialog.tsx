@@ -53,7 +53,7 @@ export function EditScheduledEmailDialog({ open, onOpenChange, email }: EditSche
   }, [email])
 
   const updateEmailMutation = useMutation({
-    mutationFn: (data: any) => apiClient.updateScheduledEmail(email!.id, data),
+    mutationFn: (data: any) => apiClient.updateScheduledEmail({ id: email!.id.toString(), data }),
     onSuccess: () => {
       toast({ title: "Scheduled email updated successfully!" })
       queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })

@@ -329,6 +329,16 @@ export const apiClient = {
     return response.data
   },
 
+  getSiteWithContracts: async (id: string) => {
+    const response = await axiosInstance.get(`/sites/${id}`)
+    return response.data
+  },
+
+  getSiteContracts: async (id: string) => {
+    const response = await axiosInstance.get(`/sites/${id}/contracts`)
+    return response.data
+  },
+
   // Dashboard Stats
   getDashboardStats: async () => {
     const response = await axiosInstance.get("/dashboard")

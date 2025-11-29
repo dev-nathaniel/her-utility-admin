@@ -34,7 +34,7 @@ export function CreateTemplateDialog({ open, onOpenChange }: CreateTemplateDialo
   const [body, setBody] = useState("")
 
   const createTemplateMutation = useMutation({
-    mutationFn: (data: any) => apiClient.createEmailTemplate(data),
+    mutationFn: (data: any) => apiClient.createTemplate(data),
     onSuccess: () => {
       toast({ title: "Template created successfully!" })
       queryClient.invalidateQueries({ queryKey: ["email-templates"] })

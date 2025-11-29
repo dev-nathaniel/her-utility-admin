@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Bell, ChevronRight } from "lucide-react"
 import Profile01 from "./profile-01"
 import Link from "next/link"
-import { ThemeToggle } from "../theme-toggle"
+import { ThemeToggle } from "./theme-toggle"
 
 interface BreadcrumbItem {
   label: string

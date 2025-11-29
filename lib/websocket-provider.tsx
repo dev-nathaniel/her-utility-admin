@@ -5,6 +5,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
 import { io, type Socket } from "socket.io-client"
 
 interface WebSocketContextType {
@@ -55,16 +56,18 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
       toast({
         title: data.title,
         description: data.message,
-        action: data.action
-          ? {
-              label: data.action.label,
-              onClick: () => {
-                if (data.action.url) {
-                  window.location.href = data.action.url
-                }
-              },
-            }
-          : undefined,
+        action: data.action ? (
+          <ToastAction
+            altText={data.action.label}
+            onClick={() => {
+              if (data.action.url) {
+                window.location.href = data.action.url
+              }
+            }}
+          >
+            {data.action.label}
+          </ToastAction>
+        ) : undefined,
       })
 
       // Invalidate relevant queries based on notification type

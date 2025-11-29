@@ -29,7 +29,7 @@ export function CancelEmailDialog({ open, onOpenChange, email }: CancelEmailDial
   const queryClient = useQueryClient()
 
   const cancelEmailMutation = useMutation({
-    mutationFn: () => apiClient.cancelScheduledEmail(email!.id),
+    mutationFn: () => apiClient.cancelScheduledEmail(email!.id.toString()),
     onSuccess: () => {
       toast({ title: "Scheduled email cancelled successfully!" })
       queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
