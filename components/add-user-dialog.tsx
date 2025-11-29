@@ -28,8 +28,7 @@ interface AddUserDialogProps {
 export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
   const queryClient = useQueryClient()
   const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
+    fullname: "",
     email: "",
     phone: "",
     company: "",
@@ -44,8 +43,7 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
       toast.success("User created successfully!")
       onOpenChange(false)
       setFormData({
-        firstName: "",
-        lastName: "",
+        fullname: "",
         email: "",
         phone: "",
         company: "",
@@ -73,27 +71,15 @@ export function AddUserDialog({ open, onOpenChange }: AddUserDialogProps) {
         <ScrollArea className="max-h-[calc(90vh-180px)] pr-4">
           <form onSubmit={handleSubmit} id="add-user-form">
             <div className="grid gap-4 py-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="first-name">First Name</Label>
-                  <Input
-                    id="first-name"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    placeholder="John"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="last-name">Last Name</Label>
-                  <Input
-                    id="last-name"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    placeholder="Smith"
-                    required
-                  />
-                </div>
+              <div className="grid gap-2">
+                <Label htmlFor="fullname">Full Name</Label>
+                <Input
+                  id="fullname"
+                  value={formData.fullname}
+                  onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
+                  placeholder="John Smith"
+                  required
+                />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">

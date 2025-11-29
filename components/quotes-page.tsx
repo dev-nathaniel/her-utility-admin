@@ -182,9 +182,9 @@ export function QuotesPage() {
                   <TableHead>Quote ID</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Utility Type</TableHead>
-                  <TableHead>Sites</TableHead>
+                  {/* <TableHead>Sites</TableHead> */}
                   <TableHead>Est. Value</TableHead>
-                  <TableHead>Priority</TableHead>
+                  {/* <TableHead>Priority</TableHead> */}
                   <TableHead>Status</TableHead>
                   <TableHead>Submitted</TableHead>
                   <TableHead className="text-right">Action</TableHead>
@@ -203,14 +203,14 @@ export function QuotesPage() {
                     <TableCell>
                       <Badge variant="outline">{quote.utilityType}</Badge>
                     </TableCell>
-                    <TableCell>{quote.sites}</TableCell>
+                    {/* <TableCell>{quote.sites}</TableCell> */}
                     <TableCell className="font-medium">{quote.estimatedValue}</TableCell>
-                    <TableCell>
+                    {/* <TableCell>
                       <Badge variant={getPriorityVariant(quote.priority)}>{quote.priority}</Badge>
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {getStatusIcon(quote.status)}
+                        {/* {getStatusIcon(quote.status)} */}
                         <Badge variant={getStatusVariant(quote.status)}>{quote.status}</Badge>
                       </div>
                     </TableCell>
@@ -226,7 +226,7 @@ export function QuotesPage() {
                           setSelectedQuote(quote)
                         }}
                       >
-                        <Eye className="mr-2 h-4 w-4" />
+                        {/* <Eye className="mr-2 h-4 w-4" /> */}
                         View
                       </Button>
                     </TableCell>

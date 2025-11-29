@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Camera, Save, Loader2 } from "lucide-react"
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { apiClient } from "@/lib/api-client"
+import { apiClient, axiosInstance } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 
 export function ProfilePage() {
@@ -18,10 +18,7 @@ export function ProfilePage() {
 
   const { data: profileData, isLoading } = useQuery({
     queryKey: ["profile"],
-    queryFn: async () => {
-      const response = await apiClient.get("/profile")
-      return response.data
-    },
+    queryFn: () => apiClient.getProfile(),
   })
 
   const [profile, setProfile] = useState(
@@ -37,7 +34,7 @@ export function ProfilePage() {
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await apiClient.patch("/profile", data)
+      const response = await axiosInstance.patch("/profile", data)
       return response.data
     },
     onSuccess: () => {
@@ -51,7 +48,7 @@ export function ProfilePage() {
 
   const updatePasswordMutation = useMutation({
     mutationFn: async (data: { currentPassword: string; newPassword: string }) => {
-      const response = await apiClient.post("/profile/password", data)
+      const response = await axiosInstance.post("/profile/password", data)
       return response.data
     },
     onSuccess: () => {
@@ -89,9 +86,9 @@ export function ProfilePage() {
                 <AvatarImage src="/placeholder.svg?height=128&width=128" />
                 <AvatarFallback className="text-2xl">AD</AvatarFallback>
               </Avatar>
-              <Button size="icon" className="absolute bottom-0 right-0 h-8 w-8 rounded-full" variant="secondary">
+              {/* <Button size="icon" className="absolute bottom-0 right-0 h-8 w-8 rounded-full" variant="secondary">
                 <Camera className="h-4 w-4" />
-              </Button>
+              </Button> */}
             </div>
             <div className="text-center">
               <p className="font-medium">

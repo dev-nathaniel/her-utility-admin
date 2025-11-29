@@ -60,7 +60,7 @@ export function ContractDetailsDialog({ contract, open, onOpenChange }: Contract
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-2xl">{contract.contractNumber}</DialogTitle>
               <DialogDescription className="mt-1">{contract.customer}</DialogDescription>
@@ -118,7 +118,7 @@ export function ContractDetailsDialog({ contract, open, onOpenChange }: Contract
                   <p className="text-base font-medium">{contract.provider}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Annual Value</p>
+                  <p className="text-sm text-muted-foreground">Value</p>
                   <p className="text-base font-medium">{contract.annualValue}</p>
                 </div>
                 <div>

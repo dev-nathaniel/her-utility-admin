@@ -12,76 +12,62 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AddUserDialog } from "./add-user-dialog"
 import { UserDetailsDialog } from "./user-details-dialog"
+import { apiClient } from "@/lib/api-client"
 
-// Mock data (commented out - will be replaced by API call)
-const mockUsers = [
-  {
-    id: 1,
-    name: "John Smith",
-    email: "john.smith@acme.com",
-    phone: "+1 (555) 123-4567",
-    company: "Acme Corporation",
-    role: "Account Manager",
-    businesses: 3,
-    sites: 8,
-    contracts: 12,
-    status: "Active",
-    avatar: "/placeholder.svg?height=40&width=40",
-    joined: "2023-01-15",
-  },
-  {
-    id: 2,
-    name: "Sarah Johnson",
-    email: "sarah.j@global.com",
-    phone: "+1 (555) 234-5678",
-    company: "Global Industries Ltd",
-    role: "Operations Director",
-    businesses: 5,
-    sites: 15,
-    contracts: 28,
-    status: "Active",
-    avatar: "/placeholder.svg?height=40&width=40",
-    joined: "2023-03-20",
-  },
-  {
-    id: 3,
-    name: "Michael Chen",
-    email: "m.chen@retail.com",
-    phone: "+1 (555) 345-6789",
-    company: "Retail Plus Inc",
-    role: "Facilities Manager",
-    businesses: 2,
-    sites: 6,
-    contracts: 10,
-    status: "Active",
-    avatar: "/placeholder.svg?height=40&width=40",
-    joined: "2023-06-10",
-  },
-]
+export interface User {
+  _id: string
+  fullname: string
+  email: string
+  phoneNumber: string
+  role: string
+  profilePicture: string | null
+  createdAt: string
+  updatedAt: string
+  numberOfBusinesses: number
+  numberOfSites: number
+  numberOfContracts: number
+  status?: string // Optional as it might not be in API yet
+  company?: string // Optional
+}
 
 export function UsersPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [addUserOpen, setAddUserOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<(typeof mockUsers)[0] | null>(null)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
-  const { data: users = mockUsers, isLoading } = useQuery({
+  const { data: response, isLoading } = useQuery({
     queryKey: ["users", searchQuery, statusFilter],
-    queryFn: async () => {
-      // const response = await apiClient.getUsers({ search: searchQuery, status: statusFilter })
-      // return response.data
-      return mockUsers // Using mock data for now
+    queryFn: () => {
+      return apiClient.getUsers({ search: searchQuery, status: statusFilter })
     },
   })
 
-  const filteredUsers = users.filter((user) => {
+  const users: User[] = response?.users || []
+
+  const filteredUsers = users.filter((user: User) => {
     const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.company.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || user.status === statusFilter
+      user.fullname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    // user.company?.toLowerCase().includes(searchQuery.toLowerCase()) // Company might not exist
+    const matchesStatus = statusFilter === "all" || (user.status || "Active") === statusFilter
     return matchesSearch && matchesStatus
   })
+
+  const { data: stats } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: apiClient.getDashboardStats,
+    placeholderData: {
+      overview: {
+        userCount: 0,
+        businessCount: 0,
+        siteCount: 0,
+        contractCount: 0,
+      },
+    },
+  })
+
+  console.log(stats, "stats users page")
 
   return (
     <div className="space-y-6">
@@ -104,7 +90,7 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,284</div>
+            <div className="text-2xl font-bold">{stats?.overview?.userCount || 0}</div>
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
         </Card>
@@ -113,8 +99,8 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Active Users</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,142</div>
-            <p className="text-xs text-muted-foreground">89% of total</p>
+            <div className="text-2xl font-bold">{stats?.overview?.userCount || 0}</div>
+            <p className="text-xs text-muted-foreground">Total registered users</p>
           </CardContent>
         </Card>
         <Card>
@@ -122,7 +108,7 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Total Businesses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">847</div>
+            <div className="text-2xl font-bold">{stats?.overview?.businessCount || 0}</div>
             <p className="text-xs text-muted-foreground">Managed by users</p>
           </CardContent>
         </Card>
@@ -131,7 +117,7 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Total Sites</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,341</div>
+            <div className="text-2xl font-bold">{stats?.overview?.siteCount || 0}</div>
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
         </Card>
@@ -144,7 +130,7 @@ export function UsersPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search users by name, email, or company..."
+                placeholder="Search users by name or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -172,7 +158,7 @@ export function UsersPage() {
                 <TableRow>
                   <TableHead>User</TableHead>
                   <TableHead>Contact</TableHead>
-                  <TableHead>Company</TableHead>
+                  {/* <TableHead>Company</TableHead> */}
                   <TableHead>Role</TableHead>
                   <TableHead>Businesses</TableHead>
                   <TableHead>Sites</TableHead>
@@ -183,22 +169,22 @@ export function UsersPage() {
               </TableHeader>
               <TableBody>
                 {filteredUsers.map((user) => (
-                  <TableRow key={user.id} className="cursor-pointer" onClick={() => setSelectedUser(user)}>
+                  <TableRow key={user._id} className="cursor-pointer" onClick={() => setSelectedUser(user)}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                          <AvatarImage src={user.profilePicture || "/placeholder.svg"} />
                           <AvatarFallback>
-                            {user.name
-                              .split(" ")
+                            {user.fullname
+                              ?.split(" ")
                               .map((n) => n[0])
-                              .join("")}
+                              .join("") || "U"}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{user.name}</p>
+                          <p className="font-medium">{user.fullname}</p>
                           <p className="text-xs text-muted-foreground">
-                            Joined {new Date(user.joined).toLocaleDateString()}
+                            Joined {new Date(user.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
@@ -211,22 +197,22 @@ export function UsersPage() {
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Phone className="h-3 w-3 text-muted-foreground" />
-                          {user.phone}
+                          {user.phoneNumber || "N/A"}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    {/* <TableCell>
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
-                        {user.company}
+                        {user.company || "N/A"}
                       </div>
-                    </TableCell>
-                    <TableCell>{user.role}</TableCell>
-                    <TableCell className="text-center font-medium">{user.businesses}</TableCell>
-                    <TableCell className="text-center font-medium">{user.sites}</TableCell>
-                    <TableCell className="text-center font-medium">{user.contracts}</TableCell>
+                    </TableCell> */}
+                    <TableCell className="capitalize">{user.role}</TableCell>
+                    <TableCell className="text-center font-medium">{user.numberOfBusinesses || 0}</TableCell>
+                    <TableCell className="text-center font-medium">{user.numberOfSites || 0}</TableCell>
+                    <TableCell className="text-center font-medium">{user.numberOfContracts || 0}</TableCell>
                     <TableCell>
-                      <Badge variant={user.status === "Active" ? "default" : "secondary"}>{user.status}</Badge>
+                      <Badge variant={(user.status || "Active") === "Active" ? "default" : "secondary"}>{user.status || "Active"}</Badge>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

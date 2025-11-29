@@ -35,7 +35,7 @@ export function AddBusinessDialog({ open, onOpenChange }: AddBusinessDialogProps
 
   const { data: users = mockUsers } = useQuery({
     queryKey: ["users-list"],
-    queryFn: async () => {
+    queryFn: () => {
       // const response = await apiClient.getUsers()
       // return response.data
       return mockUsers // Using mock data for now

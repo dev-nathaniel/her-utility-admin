@@ -8,18 +8,39 @@ import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from 'next/navigation'
+import { useAuth } from "@/lib/auth-context"
+import { toast } from "sonner"
 
 export function SignupForm() {
-  const router = useRouter()
+  const { signup } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match")
+      return
+    }
     setLoading(true)
-    // Simulate signup
-    setTimeout(() => {
-      router.push("/dashboard")
-    }, 1000)
+
+    try {
+      await signup({
+        firstName,
+        lastName,
+        email,
+        password,
+        name: `${firstName} ${lastName}`
+      })
+    } catch (error) {
+      // Error handled in mutation
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -40,6 +61,8 @@ export function SignupForm() {
                 id="firstName"
                 placeholder="John"
                 required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -48,6 +71,8 @@ export function SignupForm() {
                 id="lastName"
                 placeholder="Doe"
                 required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
               />
             </div>
           </div>
@@ -58,6 +83,8 @@ export function SignupForm() {
               type="email"
               placeholder="john.doe@company.com"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -67,6 +94,8 @@ export function SignupForm() {
               type="password"
               placeholder="Create a strong password"
               required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -76,6 +105,8 @@ export function SignupForm() {
               type="password"
               placeholder="Confirm your password"
               required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
             />
           </div>
           <div className="flex items-start space-x-2">

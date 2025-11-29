@@ -11,7 +11,7 @@ interface ViewEmailDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   email: {
-    id: number
+    _id: string
     subject: string
     recipients: string
     recipientCount: number
@@ -24,8 +24,10 @@ interface ViewEmailDialogProps {
 
 export function ViewEmailDialog({ open, onOpenChange, email }: ViewEmailDialogProps) {
   const { data: emailDetails, isLoading } = useQuery({
-    queryKey: ["email", email?.id],
-    queryFn: () => apiClient.getEmail(email!.id),
+    queryKey: ["email", email?._id],
+    queryFn: () => {
+      return apiClient.getEmail(email!._id)
+    },
     enabled: !!email && open,
     placeholderData: email,
   })

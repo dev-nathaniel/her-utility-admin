@@ -66,15 +66,15 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery({
     queryKey: ["email-templates"],
-    queryFn: () => apiClient.getEmailTemplates(),
+    queryFn: () => apiClient.getTemplates(),
     // Mock data as fallback
     placeholderData: mockTemplates,
   })
 
-  const { data: recipients } = useQuery({
-    queryKey: ["email-recipients"],
-    queryFn: () => apiClient.getEmailRecipients(),
-  })
+  // const { data: recipients } = useQuery({
+  //   queryKey: ["email-recipients"],
+  //   queryFn: () => apiClient.getEmailRecipients(),
+  // })
 
   const sendEmailMutation = useMutation({
     mutationFn: (data: any) => apiClient.sendEmail(data),
@@ -88,29 +88,32 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
     },
   })
 
-  const scheduleEmailMutation = useMutation({
-    mutationFn: (data: any) => apiClient.scheduleEmail(data),
-    onSuccess: () => {
-      toast({ title: "Email scheduled successfully!" })
-      queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
-      onOpenChange(false)
-    },
-    onError: () => {
-      toast({ title: "Failed to schedule email", variant: "destructive" })
-    },
-  })
+  // const scheduleEmailMutation = useMutation({
+  //   mutationFn: (data: any) => apiClient.scheduleEmail(data),
+  //   onSuccess: () => {
+  //     toast({ title: "Email scheduled successfully!" })
+  //     queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
+  //     onOpenChange(false)
+  //   },
+  //   onError: () => {
+  //     toast({ title: "Failed to schedule email", variant: "destructive" })
+  //   },
+  // })
 
   useEffect(() => {
     if (selectedTemplate !== "none") {
-      const template = templates.find((t: any) => t.id === selectedTemplate)
+      const template = templates.find((t: any) => (t._id || t.id) === selectedTemplate)
       if (template) {
+        console.log(template, "compose-email-template")
         setSubject(template.subject)
-        setMessage(template.body)
+        setMessage(template.content)
         // Initialize variables with empty strings
         const vars: Record<string, string> = {}
-        template.variables.forEach((varName: string) => {
-          vars[varName] = ""
-        })
+        if (Array.isArray(template.variables)) {
+          template.variables.forEach((varName: string) => {
+            vars[varName] = ""
+          })
+        }
         setTemplateVariables(vars)
       }
     } else {
@@ -130,14 +133,14 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
     }
 
     if (scheduleEmail) {
-      scheduleEmailMutation.mutate(emailData)
+      // scheduleEmailMutation.mutate(emailData)
     } else {
       sendEmailMutation.mutate(emailData)
     }
   }
 
-  const currentTemplate = templates.find((t: any) => t.id === selectedTemplate)
-  const hasVariables = currentTemplate && currentTemplate.variables.length > 0
+  const currentTemplate = templates.find((t: any) => (t._id || t.id) === selectedTemplate)
+  const hasVariables = currentTemplate?.variables?.length > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,15 +161,16 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
                   <SelectItem value="all">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4" />
-                      All Customers (1,248)
+                      All Users
                     </div>
                   </SelectItem>
-                  <SelectItem value="active">Active Customers (1,180)</SelectItem>
-                  <SelectItem value="pending">Pending Customers (68)</SelectItem>
-                  <SelectItem value="enterprise">Enterprise Customers (89)</SelectItem>
-                  <SelectItem value="expiring">Customers with Expiring Contracts (45)</SelectItem>
-                  <SelectItem value="new">New Customers (12)</SelectItem>
-                  <SelectItem value="custom">Custom Selection...</SelectItem>
+                  <SelectItem value="active">Admins</SelectItem>
+                  {/* <SelectItem value="active">Admins (1,180)</SelectItem> */}
+                  {/* <SelectItem value="pending">Pending Customers (68)</SelectItem> */}
+                  {/* <SelectItem value="enterprise">Enterprise Customers (89)</SelectItem> */}
+                  {/* <SelectItem value="expiring">Customers with Expiring Contracts (45)</SelectItem> */}
+                  {/* <SelectItem value="new">New Customers (12)</SelectItem> */}
+                  {/* <SelectItem value="custom">Custom Selection...</SelectItem> */}
                 </SelectContent>
               </Select>
             </div>
@@ -182,7 +186,7 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
                 <SelectContent>
                   <SelectItem value="none">No Template</SelectItem>
                   {templates.map((template: any) => (
-                    <SelectItem key={template.id} value={template.id}>
+                    <SelectItem key={template._id || template.id} value={template._id || template.id}>
                       {template.name}
                     </SelectItem>
                   ))}
@@ -253,13 +257,13 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
               </div>
             )}
 
-            <div className="flex items-center justify-between rounded-lg border p-4">
+            {/* <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
                 <Label htmlFor="schedule">Schedule Email</Label>
                 <p className="text-sm text-muted-foreground">Send this email at a specific date and time</p>
               </div>
               <Switch id="schedule" checked={scheduleEmail} onCheckedChange={setScheduleEmail} />
-            </div>
+            </div> */}
 
             {scheduleEmail && (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -291,11 +295,13 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="button" variant="outline">
+            {/* <Button type="button" variant="outline">
               Save as Draft
-            </Button>
-            <Button type="submit" disabled={sendEmailMutation.isPending || scheduleEmailMutation.isPending}>
-              {(sendEmailMutation.isPending || scheduleEmailMutation.isPending) && (
+            </Button> */}
+            <Button type="submit" disabled={sendEmailMutation.isPending}>
+              {/* <Button type="submit" disabled={sendEmailMutation.isPending || scheduleEmailMutation.isPending}> */}
+              {(sendEmailMutation.isPending) && (
+                // {(sendEmailMutation.isPending || scheduleEmailMutation.isPending) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               {scheduleEmail ? "Schedule Email" : "Send Now"}

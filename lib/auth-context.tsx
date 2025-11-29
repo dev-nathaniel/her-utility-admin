@@ -1,20 +1,27 @@
 "use client"
-
-import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { createContext, useContext, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { apiClient, axiosInstance } from "./api-client"
+import { toast } from "sonner"
 
-interface User {
-  id: string
+export interface User {
+  _id: string
   email: string
-  name: string
+  fullname: string
   role: string
-  verified: boolean
+  businesses: string[]
+  sites: string[]
+  profilePicture: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 interface AuthContextType {
   user: User | null
-  login: (email: string, password: string) => Promise<void>
-  logout: () => void
+  login: (data: any) => Promise<void>
+  signup: (data: any) => Promise<void>
+  logout: () => Promise<void>
   isAuthenticated: boolean
   isLoading: boolean
 }
@@ -22,44 +29,97 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+  const queryClient = useQueryClient()
 
-  useEffect(() => {
-    // Check for stored user session
-    const storedUser = localStorage.getItem("user")
-    if (storedUser) {
-      setUser(JSON.parse(storedUser))
-    }
-    setIsLoading(false)
-  }, [])
+  // Fetch current user
+  const { data: user, isLoading, isError } = useQuery({
+    queryKey: ["user"],
+    queryFn: apiClient.getCurrentUser,
+    retry: false,
+    staleTime: Infinity, // User data shouldn't go stale quickly unless we mutate it
+  })
 
-  const login = async (email: string, password: string) => {
-    // TODO: Replace with actual API call
-    // const response = await fetch('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+  // Login mutation
+  const loginMutation = useMutation({
+    mutationFn: apiClient.login,
+    onSuccess: (data: any) => {
+      console.log("Login successful, response data:", data)
+      if (data.token) {
+        document.cookie = `auth-token=${data.token}; path=/; max-age=86400; SameSite=Lax`
+        // Set default header for immediate use
+        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.token}`
+      }
+      queryClient.invalidateQueries({ queryKey: ["user"] })
+      toast.success("Login successful!")
+      console.log("Redirecting to /dashboard")
+      router.push("/dashboard")
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Login failed")
+    },
+  })
 
-    // Mock login
-    const mockUser = {
-      id: "1",
-      email,
-      name: "Admin User",
-      role: "admin",
-      verified: true, // Set to false for pending verification
-    }
+  // Signup mutation
+  const signupMutation = useMutation({
+    mutationFn: apiClient.signup,
+    onSuccess: (data: any) => {
+      if (data.token) {
+        document.cookie = `auth-token=${data.token}; path=/; max-age=86400; SameSite=Lax`
+        // Set default header for immediate use
+        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.token}`
+      }
+      queryClient.invalidateQueries({ queryKey: ["user"] })
+      toast.success("Account created successfully!")
+      router.push("/dashboard")
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Signup failed")
+    },
+  })
 
-    setUser(mockUser)
-    localStorage.setItem("user", JSON.stringify(mockUser))
+  // Logout mutation
+  const logoutMutation = useMutation({
+    mutationFn: apiClient.logout,
+    onSuccess: () => {
+      document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      delete axiosInstance.defaults.headers.common["Authorization"]
+      queryClient.setQueryData(["user"], null)
+      router.push("/login")
+      toast.success("Logged out successfully")
+    },
+    onError: () => {
+      // Even if logout fails on server, we clear local state
+      document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      delete axiosInstance.defaults.headers.common["Authorization"]
+      queryClient.setQueryData(["user"], null)
+      router.push("/login")
+    },
+  })
+
+  const login = async (data: any) => {
+    await loginMutation.mutateAsync(data)
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem("user")
-    router.push("/login")
+  const signup = async (data: any) => {
+    await signupMutation.mutateAsync(data)
+  }
+
+  const logout = async () => {
+    await logoutMutation.mutateAsync()
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider
+      value={{
+        user: user || null,
+        login,
+        signup,
+        logout,
+        isAuthenticated: !!user,
+        isLoading,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )

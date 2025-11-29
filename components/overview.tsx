@@ -6,37 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Users, FileText, HeadphonesIcon, Zap, TrendingUp, ArrowRight, Clock, CheckCircle2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
+import { useQuery } from "@tanstack/react-query"
+import { apiClient } from "@/lib/api-client"
 
-const stats = [
-  {
-    title: "Total Customers",
-    value: "1,248",
-    change: "+12%",
-    icon: Users,
-    trend: "up",
-  },
-  {
-    title: "Pending Quotes",
-    value: "23",
-    change: "+5",
-    icon: FileText,
-    trend: "up",
-  },
-  {
-    title: "Open Tickets",
-    value: "8",
-    change: "-3",
-    icon: HeadphonesIcon,
-    trend: "down",
-  },
-  {
-    title: "Active Contracts",
-    value: "2,847",
-    change: "+8%",
-    icon: Zap,
-    trend: "up",
-  },
-]
+
+
 
 const recentCustomers = [
   {
@@ -114,6 +88,50 @@ const recentTickets = [
 ]
 
 export function DashboardOverview() {
+  const { data: response } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: () => {
+      return apiClient.getDashboardStats()
+    },
+  })
+
+  const overview = response?.overview || {}
+
+  const stats = [
+    {
+      title: "Total Businesses",
+      value: overview.businessCount || 0,
+      icon: Users,
+      // description: "Total registered businesses",
+      change: "+12%",
+      trend: "up",
+    },
+    {
+      title: "Pending Quotes",
+      value: overview.pendingQuotesCount || 0,
+      icon: FileText,
+      // description: "Quotes awaiting review",
+      change: "+5%",
+      trend: "up",
+    },
+    {
+      title: "Open Tickets",
+      value: overview.openTicketsCount || 0,
+      icon: HeadphonesIcon,
+      // description: "Open tickets awaiting response",
+      change: "-3%",
+      trend: "down",
+    },
+    {
+      title: "Active Contracts",
+      value: overview.contractsCount || 0,
+      icon: Zap,
+      // description: "Currently active contracts",
+      change: "+8%",
+      trend: "up",
+    },
+  ]
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -147,8 +165,8 @@ export function DashboardOverview() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Recent Customers</CardTitle>
-              <CardDescription>Latest customer onboardings</CardDescription>
+              <CardTitle>Recent Businesses</CardTitle>
+              <CardDescription>Latest business onboardings</CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link href="/dashboard/customers">
@@ -261,8 +279,8 @@ export function DashboardOverview() {
                             ticket.priority === "High"
                               ? "destructive"
                               : ticket.priority === "Medium"
-                              ? "default"
-                              : "secondary"
+                                ? "default"
+                                : "secondary"
                           }
                           className="text-xs"
                         >

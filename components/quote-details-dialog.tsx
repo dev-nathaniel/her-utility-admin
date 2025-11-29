@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Mail, MapPin, Zap, DollarSign, FileText, Building2, Loader2 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { apiClient } from "@/lib/api-client"
+import { apiClient, axiosInstance } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import { useState } from "react"
 
@@ -30,7 +30,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
 
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
-      const response = await apiClient.patch(`/quotes/${quote.id}/status`, { status: newStatus })
+      const response = await axiosInstance.patch(`/quotes/${quote.id}/status`, { status: newStatus })
       return response.data
     },
     onSuccess: () => {
@@ -44,7 +44,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
 
   const sendQuoteMutation = useMutation({
     mutationFn: async () => {
-      const apiResponse = await apiClient.post(`/quotes/${quote.id}/send`, {
+      const apiResponse = await axiosInstance.post(`/quotes/${quote.id}/send`, {
         amount: quoteAmount,
         message: response,
       })
@@ -62,7 +62,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
 
   const rejectQuoteMutation = useMutation({
     mutationFn: async () => {
-      const apiResponse = await apiClient.post(`/quotes/${quote.id}/reject`)
+      const apiResponse = await axiosInstance.post(`/quotes/${quote.id}/reject`)
       return apiResponse.data
     },
     onSuccess: () => {
@@ -86,7 +86,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-2xl">{quote.id}</DialogTitle>
               <DialogDescription className="mt-1">
@@ -94,7 +94,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
               </DialogDescription>
             </div>
             <div className="flex gap-2">
-              <Badge variant={quote.priority === "High" ? "destructive" : "default"}>{quote.priority} Priority</Badge>
+              {/* <Badge variant={quote.priority === "High" ? "destructive" : "default"}>{quote.priority} Priority</Badge> */}
               <Badge>{quote.status}</Badge>
             </div>
           </div>
@@ -146,7 +146,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
                     <p className="text-sm font-medium">{quote.utilityType}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                {/* <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                     <MapPin className="h-4 w-4 text-primary" />
                   </div>
@@ -154,7 +154,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
                     <p className="text-xs text-muted-foreground">Number of Sites</p>
                     <p className="text-sm font-medium">{quote.sites}</p>
                   </div>
-                </div>
+                </div> */}
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                     <DollarSign className="h-4 w-4 text-primary" />

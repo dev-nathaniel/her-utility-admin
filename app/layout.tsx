@@ -25,16 +25,16 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AuthProvider>
-            <QueryProvider>
+          <QueryProvider>
+            <AuthProvider>
               <WebSocketProvider>
                 <Suspense fallback={<div>Loading...</div>}>
                   <SearchProvider>{children}</SearchProvider>
                 </Suspense>
                 <Toaster richColors position="top-right" />
               </WebSocketProvider>
-            </QueryProvider>
-          </AuthProvider>
+            </AuthProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bell, Check, CheckCheck, Trash2, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { apiClient } from "@/lib/api-client"
+import { apiClient, axiosInstance } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 
 export function NotificationsPage() {
@@ -18,27 +18,18 @@ export function NotificationsPage() {
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ["notifications"],
-    queryFn: async () => {
-      const response = await apiClient.get("/notifications")
-      return response.data
-    },
+    queryFn: () => apiClient.getNotifications(),
   })
 
   const markAsReadMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiClient.patch(`/notifications/${id}/read`)
-      return response.data
-    },
+    mutationFn: (id: number) => apiClient.markNotificationRead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notifications"] })
     },
   })
 
   const markAllAsReadMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiClient.post("/notifications/mark-all-read")
-      return response.data
-    },
+    mutationFn: () => apiClient.markAllNotificationsRead(),
     onSuccess: () => {
       toast({ title: "Success", description: "All notifications marked as read" })
       queryClient.invalidateQueries({ queryKey: ["notifications"] })
@@ -46,10 +37,7 @@ export function NotificationsPage() {
   })
 
   const deleteNotificationMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await apiClient.delete(`/notifications/${id}`)
-      return response.data
-    },
+    mutationFn: (id: number) => apiClient.deleteNotification(id),
     onSuccess: () => {
       toast({ title: "Success", description: "Notification deleted" })
       queryClient.invalidateQueries({ queryKey: ["notifications"] })

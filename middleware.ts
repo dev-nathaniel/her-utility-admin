@@ -13,9 +13,7 @@ export function middleware(request: NextRequest) {
 
   // Redirect to login if accessing protected route without auth
   if (!isPublicRoute && pathname.startsWith("/dashboard") && !userToken) {
-    // In client-side, we'll handle this with useAuth hook
-    // This middleware is just for server-side protection
-    return NextResponse.next()
+    return NextResponse.redirect(new URL("/login", request.url))
   }
 
   // Redirect to dashboard if accessing login/signup while authenticated

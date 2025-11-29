@@ -9,50 +9,58 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useQuery } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { User } from "./users-page"
 
 interface UserDetailsDialogProps {
-  user: any
+  user: User | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
 export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialogProps) {
   const { data: userDetails, isLoading } = useQuery({
-    queryKey: ["user", user?.id],
-    queryFn: () => apiClient.getUser(user.id),
-    enabled: !!user && open,
+    queryKey: ["user", user?._id],
+    queryFn: () => {
+      if (!user?._id) return null
+      return apiClient.getUser(user._id)
+    },
+    enabled: !!user?._id && open,
   })
+
+  console.log(userDetails, "user details")
+  console.log(user, "user-details-dialog")
 
   if (!user) return null
 
-  const displayUser = userDetails || user
+  const displayUser = userDetails?.user || user
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-start justify-start gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={displayUser.avatar || "/placeholder.svg"} />
+                <AvatarImage src={displayUser.profilePicture || "/placeholder.svg"} />
                 <AvatarFallback>
-                  {displayUser.name
-                    ? displayUser.name
-                        .split(" ")
-                        .map((n: string) => n[0])
-                        .join("")
+                  {displayUser.fullname
+                    ? displayUser.fullname
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
                     : "U"}
                 </AvatarFallback>
               </Avatar>
               <div>
-                <DialogTitle className="text-2xl">{displayUser.name || "Unknown User"}</DialogTitle>
+                <DialogTitle className="text-2xl">{displayUser.fullname || "Unknown User"}</DialogTitle>
                 <DialogDescription className="mt-1">
-                  {displayUser.role || "User"} at {displayUser.company || "N/A"}
+                  {displayUser.role || "User"}
+                  {/* {displayUser.company ? ` at ${displayUser.company}` : ""} */}
                 </DialogDescription>
               </div>
             </div>
-            <Badge variant={displayUser.status === "Active" ? "default" : "secondary"}>
-              {displayUser.status || "Unknown"}
+            <Badge variant={(displayUser.status || "Active") === "Active" ? "default" : "secondary"}>
+              {displayUser.status || "Active"}
             </Badge>
           </div>
         </DialogHeader>
@@ -80,21 +88,21 @@ export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialo
                   <Phone className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Phone</p>
-                    <p className="font-medium">{displayUser.phone}</p>
+                    <p className="font-medium">{displayUser.phoneNumber || "N/A"}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                {/* <div className="flex items-center gap-3">
                   <Building2 className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Company</p>
-                    <p className="font-medium">{displayUser.company}</p>
+                    <p className="font-medium">{displayUser.company || "N/A"}</p>
                   </div>
-                </div>
+                </div> */}
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">Joined</p>
-                    <p className="font-medium">{new Date(displayUser.joined).toLocaleDateString()}</p>
+                    <p className="font-medium">{new Date(displayUser.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
               </CardContent>
@@ -107,7 +115,7 @@ export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialo
                   <CardTitle className="text-sm font-medium">Businesses</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{displayUser.businesses}</div>
+                  <div className="text-2xl font-bold">{displayUser.businesses?.length || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -115,7 +123,7 @@ export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialo
                   <CardTitle className="text-sm font-medium">Sites</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{displayUser.sites}</div>
+                  <div className="text-2xl font-bold">{displayUser.sites?.length || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -123,7 +131,7 @@ export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialo
                   <CardTitle className="text-sm font-medium">Contracts</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{displayUser.contracts}</div>
+                  <div className="text-2xl font-bold">{displayUser.contracts?.length || 0}</div>
                 </CardContent>
               </Card>
             </div>

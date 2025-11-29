@@ -100,9 +100,9 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
               <DialogTitle className="text-2xl">{displayBusiness.name}</DialogTitle>
               <DialogDescription className="mt-1">Business since {displayBusiness.joinedDate}</DialogDescription>
             </div>
-            <Badge variant={displayBusiness.status === "Active" ? "default" : "secondary"}>
+            {/* <Badge variant={displayBusiness.status === "Active" ? "default" : "secondary"}>
               {displayBusiness.status}
-            </Badge>
+            </Badge> */}
           </div>
         </DialogHeader>
 
@@ -141,7 +141,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
               </Card>
 
               {/* Stats */}
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium">Total Sites</CardTitle>
@@ -164,14 +164,14 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                     </div>
                   </CardContent>
                 </Card>
-                <Card>
+                {/* <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium">Total Value</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">{displayBusiness.totalValue}</div>
                   </CardContent>
-                </Card>
+                </Card> */}
               </div>
             </TabsContent>
 
@@ -244,7 +244,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                           <TableHead>Type</TableHead>
                           <TableHead>Provider</TableHead>
                           <TableHead>Term</TableHead>
-                          <TableHead>Value</TableHead>
+                          {/* <TableHead>Value</TableHead> */}
                           <TableHead>Status</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -259,7 +259,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                             <TableCell className="text-sm">
                               {contract.startDate} to {contract.endDate}
                             </TableCell>
-                            <TableCell className="font-medium">{contract.value}</TableCell>
+                            {/* <TableCell className="font-medium">{contract.value}</TableCell> */}
                             <TableCell>
                               <Badge variant="default">{contract.status}</Badge>
                             </TableCell>

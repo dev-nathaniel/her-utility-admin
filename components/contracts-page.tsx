@@ -152,7 +152,7 @@ export function ContractsPage() {
 
   const { data: contracts = mockContracts, isLoading: contractsLoading } = useQuery({
     queryKey: ["contracts", searchQuery, statusFilter, typeFilter],
-    queryFn: async () => {
+    queryFn: () => {
       // const response = await apiClient.getContracts({ search: searchQuery, status: statusFilter, type: typeFilter })
       // return response.data
       return mockContracts // Using mock data for now
@@ -161,7 +161,7 @@ export function ContractsPage() {
 
   const { data: sites = mockSites, isLoading: sitesLoading } = useQuery({
     queryKey: ["sites", searchQuery],
-    queryFn: async () => {
+    queryFn: () => {
       // const response = await apiClient.getSites({ search: searchQuery })
       // return response.data
       return mockSites // Using mock data for now
@@ -208,14 +208,14 @@ export function ContractsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Utility Contracts & Sites</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Utility Contracts</h1>
           <p className="text-muted-foreground">Manage utility contracts and customer locations</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setAddSiteOpen(true)}>
+          {/* <Button variant="outline" onClick={() => setAddSiteOpen(true)}>
             <MapPin className="mr-2 h-4 w-4" />
             Add Site
-          </Button>
+          </Button> */}
           <Button onClick={() => setAddContractOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
             Add Contract
@@ -283,7 +283,7 @@ export function ContractsPage() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="sites">Sites</TabsTrigger>
+          {/* <TabsTrigger value="sites">Sites</TabsTrigger> */}
         </TabsList>
 
         <TabsContent value="contracts">
@@ -336,7 +336,7 @@ export function ContractsPage() {
                       <TableHead>Type</TableHead>
                       <TableHead>Provider</TableHead>
                       <TableHead>Term</TableHead>
-                      <TableHead>Annual Value</TableHead>
+                      <TableHead>Value</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Action</TableHead>
                     </TableRow>
@@ -352,20 +352,20 @@ export function ContractsPage() {
                         <TableCell>{contract.customer}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            {/* <MapPin className="h-4 w-4 text-muted-foreground" /> */}
                             <span className="text-sm">{contract.site}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Zap className="h-4 w-4 text-primary" />
+                            {/* <Zap className="h-4 w-4 text-primary" /> */}
                             <Badge variant="outline">{contract.type}</Badge>
                           </div>
                         </TableCell>
                         <TableCell>{contract.provider}</TableCell>
                         <TableCell className="text-sm">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            {/* <Calendar className="h-3 w-3 text-muted-foreground" /> */}
                             {new Date(contract.startDate).toLocaleDateString()} -{" "}
                             {new Date(contract.endDate).toLocaleDateString()}
                           </div>

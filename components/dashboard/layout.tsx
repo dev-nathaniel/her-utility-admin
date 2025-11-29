@@ -38,6 +38,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSearch } from "@/lib/search-provider"
+import { useAuth } from "@/lib/auth-context"
 
 const navigation = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
@@ -49,7 +50,7 @@ const navigation = [
   { name: "Support", href: "/dashboard/support", icon: HeadphonesIcon, badge: 3 },
   { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap, badge: 8 }, // Critical count will be dynamic
   { name: "Admins", href: "/dashboard/admins", icon: UserCog, badge: 2 },
-  { name: "Coming Soon", href: "/dashboard/coming-soon", icon: Rocket },
+  // { name: "Coming Soon", href: "/dashboard/coming-soon", icon: Rocket },
 ]
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -58,6 +59,13 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { searchQuery, setSearchQuery, performSearch } = useSearch()
   const [localSearchQuery, setLocalSearchQuery] = useState("")
+  const { logout, user } = useAuth()
+
+
+
+  const handleLogout = async () => {
+    await logout()
+  }
 
   const notifications = [
     {
@@ -172,11 +180,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3 rounded-lg px-3 py-2">
             <Avatar className="h-8 w-8">
               <AvatarImage src="/placeholder.svg?height=32&width=32" />
-              <AvatarFallback>AD</AvatarFallback>
+              <AvatarFallback>{user?.fullname?.charAt(0) || "U"}</AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <p className="text-sm font-medium">Admin User</p>
-              <p className="text-xs text-muted-foreground">admin@company.com</p>
+              <p className="text-sm font-medium">{user?.fullname || "User"}</p>
+              <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
             </div>
           </div>
         </div>
@@ -262,9 +270,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <Button variant="ghost" className="gap-2">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                    <AvatarFallback>AD</AvatarFallback>
+                    <AvatarFallback>{user?.fullname?.charAt(0) || "U"}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline">Admin User</span>
+                  <span className="hidden sm:inline">{user?.fullname || "User"}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -277,10 +285,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <Link href="/dashboard/settings">Settings</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/login" className="text-destructive">
-                    Log out
-                  </Link>
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
+                  Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

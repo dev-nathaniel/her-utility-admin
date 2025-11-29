@@ -30,7 +30,7 @@ export function EditBusinessDialog({ open, onOpenChange, business }: EditBusines
   const queryClient = useQueryClient()
 
   const updateBusinessMutation = useMutation({
-    mutationFn: (data: any) => apiClient.updateBusiness(business.id, data),
+    mutationFn: (data: any) => apiClient.updateBusiness({ id: business.id, data }),
     onSuccess: () => {
       toast({ title: "Business updated successfully!" })
       queryClient.invalidateQueries({ queryKey: ["businesses"] })
@@ -97,7 +97,7 @@ export function EditBusinessDialog({ open, onOpenChange, business }: EditBusines
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-status">Status</Label>
-                  <Select defaultValue={business.status.toLowerCase()}>
+                  <Select defaultValue={business.status?.toLowerCase() || "pending"}>
                     <SelectTrigger id="edit-status">
                       <SelectValue />
                     </SelectTrigger>

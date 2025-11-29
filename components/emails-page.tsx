@@ -34,7 +34,7 @@ export function EmailsPage() {
 
   const { data: sentEmails = [], isLoading: sentLoading } = useQuery({
     queryKey: ["sent-emails"],
-    queryFn: () => apiClient.getSentEmails(),
+    queryFn: () => apiClient.getEmails(),
     // Uncomment mock data for development
     // placeholderData: mockSentEmails,
   })
@@ -48,9 +48,14 @@ export function EmailsPage() {
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery({
     queryKey: ["email-templates"],
-    queryFn: () => apiClient.getEmailTemplates(),
+    queryFn: apiClient.getTemplates,
     // Uncomment mock data for development
     // placeholderData: mockTemplates,
+  })
+
+  const { data: stats } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: apiClient.getDashboardStats,
   })
 
   return (
@@ -68,17 +73,17 @@ export function EmailsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Emails Sent</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">3,245</div>
+            <div className="text-2xl font-bold">{stats?.overview?.emailsSentCount}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Average Open Rate</CardTitle>
           </CardHeader>
@@ -86,22 +91,22 @@ export function EmailsPage() {
             <div className="text-2xl font-bold">74%</div>
             <p className="text-xs text-muted-foreground">+5% from last month</p>
           </CardContent>
-        </Card>
-        <Card>
+        </Card> */}
+        {/* <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">{stats?.overview?.emailScheduledCount}</div>
             <p className="text-xs text-muted-foreground">Upcoming sends</p>
           </CardContent>
-        </Card>
+        </Card> */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Active Templates</CardTitle>
+            <CardTitle className="text-sm font-medium">Templates</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{stats?.overview?.templatesCount}</div>
             <p className="text-xs text-muted-foreground">Ready to use</p>
           </CardContent>
         </Card>
@@ -111,7 +116,7 @@ export function EmailsPage() {
       <Tabs defaultValue="sent" className="space-y-4">
         <TabsList>
           <TabsTrigger value="sent">Sent Emails</TabsTrigger>
-          <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
+          {/* <TabsTrigger value="scheduled">Scheduled</TabsTrigger> */}
           <TabsTrigger value="templates">Templates</TabsTrigger>
         </TabsList>
 
@@ -134,11 +139,11 @@ export function EmailsPage() {
                       <TableHead>Recipients</TableHead>
                       <TableHead>Sent Date</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Open Rate</TableHead>
+                      {/* <TableHead>Open Rate</TableHead> */}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sentEmails.map((email: any) => (
+                    {sentEmails?.map((email: any) => (
                       <TableRow
                         key={email.id}
                         className="cursor-pointer hover:bg-muted/50"
@@ -146,28 +151,34 @@ export function EmailsPage() {
                       >
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Mail className="h-4 w-4 text-muted-foreground" />
+                            <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                             <span className="font-medium">{email.subject}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="text-sm">{email.recipients}</p>
+                            <p className="text-sm">
+                              {Array.isArray(email.recipients)
+                                ? email.recipients.length > 2
+                                  ? `${email.recipients.slice(0, 2).join(", ")} +${email.recipients.length - 2} more`
+                                  : email.recipients.join(", ")
+                                : email.recipients}
+                            </p>
                             <p className="text-xs text-muted-foreground">{email.recipientCount} recipients</p>
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {new Date(email.sentDate).toLocaleString()}
+                          {new Date(email.createdAt).toLocaleString()}
                         </TableCell>
                         <TableCell>
                           <Badge variant="default" className="gap-1">
-                            <CheckCircle2 className="h-3 w-3" />
+                            {/* <CheckCircle2 className="h-3 w-3" /> */}
                             {email.status}
                           </Badge>
                         </TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <span className="font-medium text-green-600">{email.openRate}</span>
-                        </TableCell>
+                        </TableCell> */}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -200,18 +211,24 @@ export function EmailsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {scheduledEmails.map((email: any) => (
+                    {scheduledEmails?.map((email: any) => (
                       <TableRow key={email.id}>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                             <span className="font-medium">{email.subject}</span>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="text-sm">{email.recipients}</p>
-                            <p className="text-xs text-muted-foreground">{email.recipientCount} recipients</p>
+                            <p className="text-sm">
+                              {Array.isArray(email.recipients)
+                                ? email.recipients.length > 2
+                                  ? `${email.recipients.slice(0, 2).join(", ")} +${email.recipients.length - 2} more`
+                                  : email.recipients.join(", ")
+                                : email.recipients}
+                            </p>
+                            <p className="text-xs text-muted-foreground">{email.recipients.length} recipients</p>
                           </div>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
@@ -255,7 +272,7 @@ export function EmailsPage() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              {templates.map((template: any) => (
+              {templates?.map((template: any) => (
                 <Card key={template.id}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -310,9 +327,10 @@ export function EmailsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/50 p-6">
-              <h3 className="text-lg font-semibold">Subject: {previewTemplate?.name}</h3>
+              <h3 className="text-lg font-semibold">Subject: {previewTemplate?.subject}</h3>
               <div className="mt-4 space-y-3 text-sm">
-                <p>Dear {"{{customer_name}}"},</p>
+                {previewTemplate?.content}
+                {/* <p>Dear {"{{customer_name}}"},</p>
                 <p>
                   This is a preview of the <strong>{previewTemplate?.name}</strong> template. The actual content will
                   include personalized information based on customer data.
@@ -325,7 +343,7 @@ export function EmailsPage() {
                   Best regards,
                   <br />
                   Your Team
-                </p>
+                </p> */}
               </div>
             </div>
           </div>

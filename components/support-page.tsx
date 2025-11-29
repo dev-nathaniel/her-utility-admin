@@ -19,7 +19,7 @@ export function SupportPage() {
 
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ["tickets", searchQuery, statusFilter, priorityFilter],
-    queryFn: async () => {
+    queryFn: () => {
       // const response = await apiClient.getTickets({ search: searchQuery, status: statusFilter, priority: priorityFilter })
       // return response
 
@@ -181,7 +181,7 @@ export function SupportPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Open Tickets</CardTitle>
@@ -209,7 +209,7 @@ export function SupportPage() {
             <p className="text-xs text-muted-foreground">Successfully closed</p>
           </CardContent>
         </Card>
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Avg Response Time</CardTitle>
           </CardHeader>
@@ -217,7 +217,7 @@ export function SupportPage() {
             <div className="text-2xl font-bold">2.3h</div>
             <p className="text-xs text-muted-foreground">-15% from last week</p>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Search and Filter */}
@@ -270,7 +270,7 @@ export function SupportPage() {
                   <TableHead>Category</TableHead>
                   <TableHead>Priority</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Assignee</TableHead>
+                  {/* <TableHead>Assignee</TableHead> */}
                   <TableHead>Last Updated</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
@@ -297,7 +297,7 @@ export function SupportPage() {
                     <TableCell>
                       <Badge variant={getStatusVariant(ticket.status)}>{ticket.status}</Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{ticket.assignee}</TableCell>
+                    {/* <TableCell className="text-sm text-muted-foreground">{ticket.assignee}</TableCell> */}
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(ticket.lastUpdated).toLocaleString()}
                     </TableCell>
@@ -310,7 +310,7 @@ export function SupportPage() {
                           setSelectedTicket(ticket)
                         }}
                       >
-                        <MessageSquare className="mr-2 h-4 w-4" />
+                        {/* <MessageSquare className="mr-2 h-4 w-4" /> */}
                         View
                       </Button>
                     </TableCell>

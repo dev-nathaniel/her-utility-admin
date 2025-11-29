@@ -25,11 +25,10 @@ export function LoginForm() {
     setLoading(true)
 
     try {
-      await login(email, password)
-      toast.success("Login successful!")
-      router.push("/dashboard")
+      await login({ email, password })
+      // Success is handled in the mutation onSuccess
     } catch (error) {
-      toast.error("Login failed. Please check your credentials.")
+      // Error is handled in the mutation onError
     } finally {
       setLoading(false)
     }

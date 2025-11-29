@@ -14,7 +14,7 @@ import { BusinessDetailsDialog } from "./business-details-dialog"
 import { EditBusinessDialog } from "./edit-business-dialog"
 import { DeactivateBusinessDialog } from "./deactivate-business-dialog"
 import { useQuery } from "@tanstack/react-query"
-import { apiClient } from "@/lib/api-client"
+import { apiClient, axiosInstance } from "@/lib/api-client"
 import { useSearchParams } from "next/navigation"
 
 // Dummy data (commented out, will be replaced by API calls)
@@ -47,13 +47,13 @@ export function BusinessesPage() {
 
   const { data: businessesData, isLoading } = useQuery({
     queryKey: ["businesses"],
-    queryFn: apiClient.getBusinesses,
+    queryFn: () => apiClient.getBusinesses(),
   })
 
-  const businesses = Array.isArray(businessesData)
-    ? businessesData
-    : businessesData?.data && Array.isArray(businessesData.data)
-      ? businessesData.data
+  const businesses = Array.isArray(businessesData?.businesses)
+    ? businessesData.businesses
+    : Array.isArray(businessesData?.data?.businesses)
+      ? businessesData.data.businesses
       : []
 
   const filteredBusinesses = businesses.filter(
@@ -61,6 +61,13 @@ export function BusinessesPage() {
       business.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       business.email?.toLowerCase().includes(searchQuery.toLowerCase()),
   )
+
+  console.log("businesses-page", businesses)
+
+  const { data: stats } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: () => apiClient.getDashboardStats(),
+  })
 
   if (isLoading) {
     return <div className="flex items-center justify-center p-8">Loading businesses...</div>
@@ -81,26 +88,26 @@ export function BusinessesPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Businesses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{businesses.length}</div>
+            <div className="text-2xl font-bold">{stats?.overview?.businessCount || 0}</div>
             <p className="text-xs text-muted-foreground">+12% from last month</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Active Contracts</CardTitle>
+            <CardTitle className="text-sm font-medium">Contracts</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,847</div>
+            <div className="text-2xl font-bold">{stats?.overview?.contractCount || 0}</div>
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
         </Card>
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium">Total Contract Value</CardTitle>
           </CardHeader>
@@ -108,7 +115,7 @@ export function BusinessesPage() {
             <div className="text-2xl font-bold">$4.2M</div>
             <p className="text-xs text-muted-foreground">Annual recurring revenue</p>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Search and Filter */}
@@ -135,11 +142,11 @@ export function BusinessesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Business</TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead>Status</TableHead>
+                {/* <TableHead>Contact</TableHead> */}
+                {/* <TableHead>Status</TableHead> */}
                 <TableHead>Sites</TableHead>
                 <TableHead>Contracts</TableHead>
-                <TableHead>Total Value</TableHead>
+                {/* <TableHead>Total Value</TableHead> */}
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -152,7 +159,7 @@ export function BusinessesPage() {
                 </TableRow>
               ) : (
                 filteredBusinesses.map((business: any) => (
-                  <TableRow key={business.id} className="cursor-pointer" onClick={() => setSelectedBusiness(business)}>
+                  <TableRow key={business._id} className="cursor-pointer" onClick={() => setSelectedBusiness(business)}>
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
@@ -160,32 +167,32 @@ export function BusinessesPage() {
                         </Avatar>
                         <div>
                           <p className="font-medium">{business.name}</p>
-                          <p className="text-xs text-muted-foreground">Joined {business.joinedDate}</p>
+                          <p className="text-xs text-muted-foreground">Joined {new Date(business.createdAt).toLocaleDateString()}</p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    {/* <TableCell>
                       <div>
                         <p className="text-sm">{business.email}</p>
                         <p className="text-xs text-muted-foreground">{business.phone}</p>
                       </div>
-                    </TableCell>
-                    <TableCell>
+                    </TableCell> */}
+                    {/* <TableCell>
                       <Badge variant={business.status === "Active" ? "default" : "secondary"}>{business.status}</Badge>
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{business.sites}</span>
+                        <span>{business.numberOfSites}</span>
                       </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Zap className="h-4 w-4 text-muted-foreground" />
-                        <span>{business.contracts}</span>
+                        <span>{business.numberOfContracts}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">{business.totalValue}</TableCell>
+                    {/* <TableCell className="font-medium">{business.totalValue}</TableCell> */}
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>

@@ -64,7 +64,7 @@ export function TicketDetailsDialog({ ticket, open, onOpenChange }: TicketDetail
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
-          <div className="flex items-start justify-between">
+          <div className="flex items-center justify-between">
             <div>
               <DialogTitle className="text-2xl">{ticket.id}</DialogTitle>
               <DialogDescription className="mt-1">{ticket.subject}</DialogDescription>
