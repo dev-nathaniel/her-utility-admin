@@ -182,9 +182,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <AvatarImage src="/placeholder.svg?height=32&width=32" />
               <AvatarFallback>{user?.fullname?.charAt(0) || "U"}</AvatarFallback>
             </Avatar>
-            <div className="flex-1">
-              <p className="text-sm font-medium">{user?.fullname || "User"}</p>
-              <p className="text-xs text-muted-foreground">{user?.email || ""}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{user?.fullname || "User"}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
             </div>
           </div>
         </div>

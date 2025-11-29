@@ -54,7 +54,7 @@ export function AdminsPage() {
       : []
 
   const verifyAdminMutation = useMutation({
-    mutationFn: (adminId: number) => apiClient.verifyAdmin(adminId),
+    mutationFn: (adminId: number) => apiClient.approveAdmin(adminId),
     onSuccess: () => {
       toast({ title: `${selectedAdmin?.name} has been verified and can now access the system` })
       queryClient.invalidateQueries({ queryKey: ["admins"] })
