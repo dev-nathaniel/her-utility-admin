@@ -1,8 +1,8 @@
 "use client"
 
 import type { ReactNode } from "react"
-import Sidebar from "./sidebar"
-import TopNav from "./top-nav"
+import Sidebar from "../sidebar"
+import TopNav from "../top-nav"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 
