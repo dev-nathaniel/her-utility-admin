@@ -16,10 +16,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  // Redirect to dashboard if accessing login/signup while authenticated
-  if (isPublicRoute && userToken) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
-  }
+
 
   return NextResponse.next()
 }

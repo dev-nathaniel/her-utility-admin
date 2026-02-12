@@ -46,64 +46,16 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, MapPin, Zap, Building2, Calendar, AlertTriangle, AlertCircle, Clock } from "lucide-react"
+import { Search, Plus, MapPin, Zap, Building2, Calendar, AlertTriangle, AlertCircle, Clock, FileText } from "lucide-react"
 import { ContractDetailsDialog } from "./contract-details-dialog"
 import { SiteDetailsDialog } from "./site-details-dialog"
+import { apiClient } from "@/lib/api-client"
+import { useRouter } from "next/navigation"
 
-const mockContracts = [
-  {
-    id: 1,
-    contractNumber: "CNT-2024-001",
-    customer: "Acme Corporation",
-    site: "Main Office - New York",
-    type: "Electricity",
-    provider: "ConEd",
-    startDate: "2023-01-15",
-    endDate: "2025-01-14",
-    annualValue: "$45,000",
-    status: "Active",
-    usage: "125,000 kWh/year",
-  },
-  {
-    id: 2,
-    contractNumber: "CNT-2024-002",
-    customer: "Acme Corporation",
-    site: "Main Office - New York",
-    type: "Gas",
-    provider: "National Grid",
-    startDate: "2023-03-01",
-    endDate: "2024-12-31",
-    annualValue: "$28,000",
-    status: "Expiring Soon",
-    usage: "50,000 therms/year",
-  },
-  {
-    id: 3,
-    contractNumber: "CNT-2024-003",
-    customer: "Global Industries Ltd",
-    site: "Warehouse A - Newark",
-    type: "Electricity",
-    provider: "PSE&G",
-    startDate: "2023-06-10",
-    endDate: "2025-06-09",
-    annualValue: "$52,000",
-    status: "Active",
-    usage: "180,000 kWh/year",
-  },
-  {
-    id: 4,
-    contractNumber: "CNT-2024-004",
-    customer: "Retail Plus Inc",
-    site: "Store #1 - Brooklyn",
-    type: "Electricity",
-    provider: "ConEd",
-    startDate: "2024-01-01",
-    endDate: "2026-01-01",
-    annualValue: "$32,000",
-    status: "Active",
-    usage: "95,000 kWh/year",
-  },
-]
+// Mock data preserved for reference but disabled
+// const mockContracts = [
+//   { ... }
+// ]
 
 const mockSites = [
   {
@@ -142,22 +94,93 @@ const mockSites = [
 ]
 
 export function ContractsPage() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
-  const [selectedContract, setSelectedContract] = useState<(typeof mockContracts)[0] | null>(null)
-  const [selectedSite, setSelectedSite] = useState<(typeof mockSites)[0] | null>(null)
+  const [selectedContract, setSelectedContract] = useState<any>(null)
+  const [selectedSite, setSelectedSite] = useState<any>(null)
   const [addContractOpen, setAddContractOpen] = useState(false)
   const [addSiteOpen, setAddSiteOpen] = useState(false)
 
-  const { data: contracts = mockContracts, isLoading: contractsLoading } = useQuery({
+  const { data: contractsResponse, isLoading: contractsLoading, error } = useQuery({
     queryKey: ["contracts", searchQuery, statusFilter, typeFilter],
-    queryFn: () => {
-      // const response = await apiClient.getContracts({ search: searchQuery, status: statusFilter, type: typeFilter })
-      // return response.data
-      return mockContracts // Using mock data for now
+    queryFn: async () => {
+      // Fetch utilities from server (now correctly mapped to /utilities endpoint)
+      console.log("Fetching contracts...");
+      const response = await apiClient.getContracts({
+        search: searchQuery,
+        status: statusFilter !== "all" ? statusFilter.toLowerCase() : undefined,
+      })
+      console.log("Fetched contracts response:", response);
+      return response
     },
   })
+
+  const { data: statsData } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: apiClient.getDashboardStats,
+  })
+  
+  const overview = statsData?.overview || {}
+
+  // Real stats from API
+  const stats = [
+    {
+      title: "Total Contracts",
+      value: overview.contractsCount || 0,
+      description: "Active utility agreements",
+      icon: FileText,
+    },
+    {
+      title: "Active Contracts",
+      value: overview.activeUtilitiesCount || 0,
+      description: "Currently in service",
+      icon: Zap,
+    },
+    {
+      title: "Pending Contracts",
+      value: overview.pendingUtilitiesCount || 0,
+      description: "Awaiting approval",
+      icon: AlertCircle,
+    },
+    {
+      title: "Expiring Soon",
+      value: overview.expiringUtilitiesCount || 0,
+      description: "Within next 30 days",
+      icon: Clock,
+    },
+  ]
+
+  // Map Server Response to UI Contract Shape
+  // The server response is now { success: true, message: "...", data: { utilities: [...] } }
+  // So we access contractsResponse.data.utilities
+  const contracts =
+    contractsResponse?.data?.utilities?.map((util: any) => ({
+      id: util._id,
+      contractNumber: util.identifier || util.previousMeterId || "PENDING",
+      customer: util.business?.name || "Unknown Business",
+      site: util.site?.name || "Unknown Site",
+      type: util.type ? util.type.charAt(0).toUpperCase() + util.type.slice(1) : "Unknown",
+      provider: util.supplier || util.previousSupplier || "Pending",
+      startDate: util.contractStart || "", // Handle missing dates gracefully
+      endDate: util.contractEnd || util.previousContractExpiry || "",
+      annualValue: "—", // Not yet in backend model
+      status:
+        util.status === "pending"
+          ? "Pending"
+          : util.status === "expired"
+          ? "Expired"
+          : util.status === "active"
+          ? "Active"
+          : "Unknown",
+      usage: "—", // Not yet in backend model
+      original: util, // Keep original data for reference if needed
+    })) || []
+  
+  if (error) console.error("Error fetching contracts:", error);
+  console.log("Mapped contracts:", contracts);
+
 
   const { data: sites = mockSites, isLoading: sitesLoading } = useQuery({
     queryKey: ["sites", searchQuery],
@@ -168,15 +191,17 @@ export function ContractsPage() {
     },
   })
 
-  const filteredContracts = contracts.filter((contract) => {
+  const filteredContracts = contracts.filter((contract: any) => {
     const matchesSearch =
       contract.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contract.site.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contract.contractNumber.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || contract.status === statusFilter
+    const matchesStatus = statusFilter === "all" || contract.status.toLowerCase() === statusFilter.toLowerCase()
     const matchesType = typeFilter === "all" || contract.type === typeFilter
     return matchesSearch && matchesStatus && matchesType
   })
+
+
 
   const filteredSites = sites.filter(
     (site) =>
@@ -185,19 +210,19 @@ export function ContractsPage() {
   )
 
   const today = new Date()
-  const criticalContracts = contracts.filter((contract) => {
+  const criticalContracts = contracts.filter((contract: any) => {
     const endDate = new Date(contract.endDate)
     const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilExpiry > 0 && daysUntilExpiry <= 7
   })
 
-  const urgentContracts = contracts.filter((contract) => {
+  const urgentContracts = contracts.filter((contract: any) => {
     const endDate = new Date(contract.endDate)
     const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilExpiry > 7 && daysUntilExpiry <= 30
   })
 
-  const warningContracts = contracts.filter((contract) => {
+  const warningContracts = contracts.filter((contract: any) => {
     const endDate = new Date(contract.endDate)
     const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     return daysUntilExpiry > 30 && daysUntilExpiry <= 60
@@ -230,7 +255,7 @@ export function ContractsPage() {
             <CardTitle className="text-sm font-medium">Active Contracts</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">2,847</div>
+            <div className="text-2xl font-bold">{overview.activeUtilitiesCount || 0}</div>
             <p className="text-xs text-muted-foreground">Across all customers</p>
           </CardContent>
         </Card>
@@ -305,9 +330,9 @@ export function ContractsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="Active">Active</SelectItem>
-                    <SelectItem value="Expiring Soon">Expiring Soon</SelectItem>
-                    <SelectItem value="Expired">Expired</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="expired">Expired</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
@@ -342,7 +367,7 @@ export function ContractsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredContracts.map((contract) => (
+                    {filteredContracts.map((contract: any) => (
                       <TableRow
                         key={contract.id}
                         className="cursor-pointer"
@@ -366,8 +391,9 @@ export function ContractsPage() {
                         <TableCell className="text-sm">
                           <div className="flex items-center gap-1">
                             {/* <Calendar className="h-3 w-3 text-muted-foreground" /> */}
-                            {new Date(contract.startDate).toLocaleDateString()} -{" "}
-                            {new Date(contract.endDate).toLocaleDateString()}
+                            {contract.startDate ? new Date(contract.startDate).toLocaleDateString() : ""}
+                            {contract.startDate && contract.endDate ? " - " : ""}
+                            {contract.endDate ? new Date(contract.endDate).toLocaleDateString() : ""}
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">{contract.annualValue}</TableCell>
@@ -378,6 +404,8 @@ export function ContractsPage() {
                                 ? "default"
                                 : contract.status === "Expiring Soon"
                                   ? "destructive"
+                                  : contract.status === "Pending"
+                                  ? "secondary" // Orange/Yellow distinct style needs custom CSS possibly, sticking to secondary for now
                                   : "secondary"
                             }
                           >
@@ -395,6 +423,20 @@ export function ContractsPage() {
                           >
                             View
                           </Button>
+                          {contract.status === "Pending" && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              className="ml-2"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                // Navigate to quotes page with create action
+                                router.push(`/dashboard/quotes?action=create&utilityId=${contract.id}`)
+                              }}
+                            >
+                              Create Quote
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

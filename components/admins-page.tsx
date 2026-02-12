@@ -38,7 +38,7 @@ export function AdminsPage() {
     // placeholderData: mockAdmins,
   })
 
-  const admins = Array.isArray(adminsData) ? adminsData : Array.isArray(adminsData?.data) ? adminsData.data : []
+  const admins = adminsData?.data?.admins || []
 
   const { data: pendingAdminsData, isLoading: pendingLoading } = useQuery({
     queryKey: ["pending-admins"],
@@ -47,14 +47,10 @@ export function AdminsPage() {
     // placeholderData: mockPendingAdmins,
   })
 
-  const pendingAdmins = Array.isArray(pendingAdminsData)
-    ? pendingAdminsData
-    : Array.isArray(pendingAdminsData?.data)
-      ? pendingAdminsData.data
-      : []
+  const pendingAdmins = pendingAdminsData?.data?.admins || []
 
   const verifyAdminMutation = useMutation({
-    mutationFn: (adminId: number) => apiClient.approveAdmin(adminId),
+    mutationFn: (adminId: string) => apiClient.approveAdmin(adminId),
     onSuccess: () => {
       toast({ title: `${selectedAdmin?.name} has been verified and can now access the system` })
       queryClient.invalidateQueries({ queryKey: ["admins"] })
@@ -68,7 +64,7 @@ export function AdminsPage() {
   })
 
   const rejectAdminMutation = useMutation({
-    mutationFn: (adminId: number) => apiClient.rejectAdmin(adminId),
+    mutationFn: (adminId: string) => apiClient.rejectAdmin(adminId),
     onSuccess: () => {
       toast({ title: "Admin registration rejected" })
       queryClient.invalidateQueries({ queryKey: ["pending-admins"] })
@@ -96,7 +92,7 @@ export function AdminsPage() {
   }
 
   const confirmVerification = () => {
-    verifyAdminMutation.mutate(selectedAdmin.id)
+    verifyAdminMutation.mutate(selectedAdmin._id)
   }
 
   return (
@@ -190,7 +186,7 @@ export function AdminsPage() {
                   </TableHeader>
                   <TableBody>
                     {admins.map((admin: any) => (
-                      <TableRow key={admin.id}>
+                      <TableRow key={admin._id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar>
@@ -251,7 +247,7 @@ export function AdminsPage() {
                   </TableHeader>
                   <TableBody>
                     {pendingAdmins.map((admin: any) => (
-                      <TableRow key={admin.id}>
+                      <TableRow key={admin._id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
                             <Avatar>
@@ -275,7 +271,7 @@ export function AdminsPage() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => rejectAdminMutation.mutate(admin.id)}
+                              onClick={() => rejectAdminMutation.mutate(admin._id)}
                               disabled={rejectAdminMutation.isPending}
                             >
                               Reject

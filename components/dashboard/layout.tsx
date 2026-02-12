@@ -39,29 +39,60 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useSearch } from "@/lib/search-provider"
 import { useAuth } from "@/lib/auth-context"
+import { useQuery } from "@tanstack/react-query"
+import { apiClient } from "@/lib/api-client"
 
-const navigation = [
+type navigationType = {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  badge?: number
+}
+
+const navigation: navigationType[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Users", href: "/dashboard/users", icon: Users },
   { name: "Businesses", href: "/dashboard/businesses", icon: Building2 },
-  { name: "Quote Enquiries", href: "/dashboard/quotes", icon: FileText, badge: 5 },
+  { name: "Quote Enquiries", href: "/dashboard/quotes", icon: FileText },
   { name: "Email Management", href: "/dashboard/emails", icon: Mail },
   { name: "Content Management", href: "/dashboard/content", icon: Newspaper },
-  { name: "Support", href: "/dashboard/support", icon: HeadphonesIcon, badge: 3 },
-  { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap, badge: 8 }, // Critical count will be dynamic
-  { name: "Admins", href: "/dashboard/admins", icon: UserCog, badge: 2 },
+  { name: "Support", href: "/dashboard/support", icon: HeadphonesIcon},
+  { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap }, // Critical count will be dynamic
+  { name: "Admins", href: "/dashboard/admins", icon: UserCog },
   // { name: "Coming Soon", href: "/dashboard/coming-soon", icon: Rocket },
 ]
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const { logout, user } = useAuth()
   const pathname = usePathname()
   const { searchQuery, setSearchQuery, performSearch } = useSearch()
   const [localSearchQuery, setLocalSearchQuery] = useState("")
-  const { logout, user } = useAuth()
 
+  const { data: stats } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: apiClient.getDashboardStats,
+    // refresh every minute
+    refetchInterval: 60000,
+  })
 
+  const overview = stats?.overview || {}
+
+  const navigationItems = navigation.map(item => {
+    if (item.name === "Utility Contracts") {
+        return { ...item, badge: overview.pendingUtilitiesCount || 0 }
+    }
+    if (item.name === "Quote Enquiries") {
+        return { ...item, badge: overview.pendingQuotesCount || 0 }
+    }
+    if (item.name === "Admins") {
+        return { ...item, badge: overview.pendingAdminsCount || 0 }
+    }
+    return item
+  })
+
+  console.log("Navigation items:", navigationItems);
 
   const handleLogout = async () => {
     await logout()
@@ -143,7 +174,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-          {navigation.map((item) => {
+          {navigationItems.map((item) => {
             const isActive = pathname === item.href
             return (
               <Link
@@ -160,7 +191,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   <item.icon className="h-5 w-5" />
                   <span>{item.name}</span>
                 </div>
-                {item.badge && (
+                {!!item.badge && (
                   <Badge
                     className={cn(
                       "h-5 min-w-5 rounded-full px-1.5 text-xs",

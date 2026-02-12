@@ -14,6 +14,11 @@ export const axiosInstance = axios.create({
 axiosInstance.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
+      // Check if Authorization header is already set (e.g. from defaults)
+      if (config.headers.Authorization) {
+         return config;
+      }
+
       // More robust cookie parsing
       const match = document.cookie.match(new RegExp('(^| )auth-token=([^;]+)'));
       const token = match ? match[2] : null;
@@ -141,6 +146,11 @@ export const apiClient = {
     return response.data
   },
 
+  createQuote: async (data: any) => {
+    const response = await axiosInstance.post("/quotes", data)
+    return response.data
+  },
+
   getQuote: async (id: string) => {
     const response = await axiosInstance.get(`/quotes/${id}`)
     return response.data
@@ -152,23 +162,24 @@ export const apiClient = {
   },
 
   // Contracts
+  // Utilities (Contracts)
   getContracts: async (params?: { search?: string; status?: string }) => {
-    const response = await axiosInstance.get("/contracts", { params })
+    const response = await axiosInstance.get("/utilities", { params })
     return response.data
   },
 
   getContract: async (id: string) => {
-    const response = await axiosInstance.get(`/contracts/${id}`)
+    const response = await axiosInstance.get(`/utilities/${id}`)
     return response.data
   },
 
   updateContract: async ({ id, data }: { id: string; data: any }) => {
-    const response = await axiosInstance.put(`/contracts/${id}`, data)
+    const response = await axiosInstance.put(`/utilities/${id}`, data)
     return response.data
   },
 
   renewContract: async (id: string) => {
-    const response = await axiosInstance.post(`/contracts/${id}/renew`)
+    const response = await axiosInstance.post(`/utilities/${id}/renew`)
     return response.data
   },
 
@@ -287,12 +298,12 @@ export const apiClient = {
     return response.data
   },
 
-  approveAdmin: async (id: number) => {
+  approveAdmin: async (id: number | string) => {
     const response = await axiosInstance.post(`/admins/${id}/approve`)
     return response.data
   },
 
-  rejectAdmin: async (id: number) => {
+  rejectAdmin: async (id: number | string) => {
     const response = await axiosInstance.post(`/admins/${id}/reject`)
     return response.data
   },

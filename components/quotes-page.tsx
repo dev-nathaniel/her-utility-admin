@@ -10,36 +10,61 @@ import { Search, Clock, CheckCircle2, XCircle, Eye } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { QuoteDetailsDialog } from "./quote-details-dialog"
+import { CreateQuoteDialog } from "./create-quote-dialog"
+import { apiClient } from "@/lib/api-client"
+import { useSearchParams } from "next/navigation"
 
 export function QuotesPage() {
+  const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedQuote, setSelectedQuote] = useState<any>(null)
+  
+  // Check for action in URL (e.g., from contracts page)
+  const [createOpen, setCreateOpen] = useState(searchParams.get("action") === "create")
+  const defaultUtilityId = searchParams.get("utilityId")
 
-  const { data: quotes = [], isLoading } = useQuery({
+  const { data: quotesResponse, isLoading } = useQuery({
     queryKey: ["quotes", searchQuery, statusFilter],
     queryFn: async () => {
-      // const response = await apiClient.getQuotes({ search: searchQuery, status: statusFilter })
-      // return response
-
-      // Mock data - remove when API is ready
-      return [
-        {
-          id: "QTE-1048",
-          customer: "Retail Plus Inc",
-          email: "contact@retailplus.com",
-          utilityType: "Electricity",
-          sites: 5,
-          estimatedValue: "$125,000",
-          status: "Pending Review",
-          priority: "High",
-          submittedDate: "2024-01-15T10:30:00",
-          message:
-            "Looking to switch electricity provider for 5 retail locations. Current contract expires in 2 months.",
-        },
-      ]
+      const response = await apiClient.getQuotes({ 
+        search: searchQuery, 
+        status: statusFilter !== "all" ? statusFilter : undefined 
+      })
+      return response
     },
   })
+
+  const { data: statsData } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: apiClient.getDashboardStats,
+  })
+  
+  const overview = statsData?.overview || {}
+
+  // Map Server Response to UI Quote Shape
+  const quotes = quotesResponse?.quotes?.map((q: any) => ({
+    id: q._id,
+    customer: q.business?.name || "Unknown Business",
+    email: q.requester?.email || "Unknown Email",
+    utilityType: q.utilityType ? q.utilityType.charAt(0).toUpperCase() + q.utilityType.slice(1) : "Unknown",
+    estimatedValue: q.suggestedPrice ? `£${q.suggestedPrice.toLocaleString()}` : "—",
+    status: q.status ? q.status.charAt(0).toUpperCase() + q.status.slice(1) : "Pending",
+    submittedDate: q.createdAt || new Date().toISOString(),
+    message: q.notes || "No notes provided",
+    original: q
+  })) || []
+
+  // Clear query params when closing dialog to prevent reopening on refresh
+  const handleOpenChange = (open: boolean) => {
+    setCreateOpen(open)
+    if (!open) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete("action")
+      url.searchParams.delete("utilityId")
+      window.history.replaceState({}, "", url.toString())
+    }
+  }
 
   const filteredQuotes = quotes.filter((quote: any) => {
     const matchesSearch =
@@ -100,8 +125,15 @@ export function QuotesPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Quote Enquiries</h1>
-        <p className="text-muted-foreground">Manage quote requests from customers</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Quote Enquiries</h1>
+            <p className="text-muted-foreground">Manage quote requests from customers</p>
+          </div>
+          <Button onClick={() => setCreateOpen(true)}>
+            Create New Quote
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -111,7 +143,7 @@ export function QuotesPage() {
             <CardTitle className="text-sm font-medium">Pending Review</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">23</div>
+            <div className="text-2xl font-bold">{overview.pendingQuotesCount || 0}</div>
             <p className="text-xs text-muted-foreground">Awaiting action</p>
           </CardContent>
         </Card>
@@ -120,7 +152,7 @@ export function QuotesPage() {
             <CardTitle className="text-sm font-medium">In Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">Being processed</p>
           </CardContent>
         </Card>
@@ -129,7 +161,7 @@ export function QuotesPage() {
             <CardTitle className="text-sm font-medium">Quoted</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">Sent to customers</p>
           </CardContent>
         </Card>
@@ -138,7 +170,7 @@ export function QuotesPage() {
             <CardTitle className="text-sm font-medium">Accepted</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">45</div>
+            <div className="text-2xl font-bold">{overview.acceptedQuotesCount || 0}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
@@ -191,7 +223,7 @@ export function QuotesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredQuotes.map((quote) => (
+                {filteredQuotes.map((quote: any) => (
                   <TableRow key={quote.id} className="cursor-pointer" onClick={() => setSelectedQuote(quote)}>
                     <TableCell className="font-medium">{quote.id}</TableCell>
                     <TableCell>
@@ -243,6 +275,12 @@ export function QuotesPage() {
         quote={selectedQuote}
         open={!!selectedQuote}
         onOpenChange={(open) => !open && setSelectedQuote(null)}
+      />
+
+      <CreateQuoteDialog 
+        open={createOpen} 
+        onOpenChange={handleOpenChange}
+        utilityId={defaultUtilityId}
       />
     </div>
   )

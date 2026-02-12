@@ -12,80 +12,7 @@ import { apiClient } from "@/lib/api-client"
 
 
 
-const recentCustomers = [
-  {
-    name: "Acme Corporation",
-    email: "contact@acme.com",
-    status: "Active",
-    contracts: 12,
-    addedDate: "2 hours ago",
-  },
-  {
-    name: "Global Industries Ltd",
-    email: "info@globalind.com",
-    status: "Active",
-    contracts: 8,
-    addedDate: "5 hours ago",
-  },
-  {
-    name: "TechStart Solutions",
-    email: "hello@techstart.com",
-    status: "Pending",
-    contracts: 3,
-    addedDate: "1 day ago",
-  },
-]
 
-const recentQuotes = [
-  {
-    customer: "Retail Plus Inc",
-    type: "Electricity",
-    sites: 5,
-    status: "Pending Review",
-    date: "1 hour ago",
-  },
-  {
-    customer: "Manufacturing Co",
-    type: "Gas & Electricity",
-    sites: 12,
-    status: "In Progress",
-    date: "3 hours ago",
-  },
-  {
-    customer: "Office Solutions",
-    type: "Gas",
-    sites: 2,
-    status: "Pending Review",
-    date: "6 hours ago",
-  },
-]
-
-const recentTickets = [
-  {
-    id: "TKT-1048",
-    customer: "Acme Corporation",
-    subject: "Contract renewal inquiry",
-    priority: "High",
-    status: "Open",
-    time: "30 mins ago",
-  },
-  {
-    id: "TKT-1047",
-    customer: "Global Industries Ltd",
-    subject: "Billing question",
-    priority: "Medium",
-    status: "Open",
-    time: "2 hours ago",
-  },
-  {
-    id: "TKT-1046",
-    customer: "TechStart Solutions",
-    subject: "Site addition request",
-    priority: "Low",
-    status: "Resolved",
-    time: "5 hours ago",
-  },
-]
 
 export function DashboardOverview() {
   const { data: response } = useQuery({
@@ -96,6 +23,9 @@ export function DashboardOverview() {
   })
 
   const overview = response?.overview || {}
+  const recentBusinesses = overview.recentBusinesses || []
+  const recentQuotes = overview.recentQuotes || []
+  const recentTickets = overview.recentTickets || []
 
   const stats = [
     {
@@ -169,7 +99,7 @@ export function DashboardOverview() {
               <CardDescription>Latest business onboardings</CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard/customers">
+              <Link href="/dashboard/businesses">
                 View all
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -177,25 +107,25 @@ export function DashboardOverview() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentCustomers.map((customer) => (
-                <div key={customer.name} className="flex items-center justify-between">
+              {recentBusinesses.map((business: any) => (
+                <div key={business._id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
-                      <AvatarFallback>{customer.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback>{business.name.substring(0, 2).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="text-sm font-medium leading-none">{customer.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{customer.email}</p>
+                      <p className="text-sm font-medium leading-none">{business.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{business.email}</p>
                     </div>
                   </div>
                   <div className="text-right">
                     <Badge
-                      variant={customer.status === "Active" ? "default" : "secondary"}
-                      className={customer.status === "Active" ? "bg-accent text-accent-foreground mb-1" : "mb-1"}
+                      variant={business.status === "Active" ? "default" : "secondary"}
+                      className={business.status === "Active" ? "bg-accent text-accent-foreground mb-1" : "mb-1"}
                     >
-                      {customer.status}
+                      {business.status}
                     </Badge>
-                    <p className="text-xs text-muted-foreground">{customer.contracts} contracts</p>
+                    <p className="text-xs text-muted-foreground">{new Date(business.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
               ))}
@@ -219,22 +149,22 @@ export function DashboardOverview() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentQuotes.map((quote, index) => (
+              {recentQuotes.map((quote: any, index: number) => (
                 <div key={index} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
                   <div className="flex-1">
-                    <p className="text-sm font-medium">{quote.customer}</p>
+                    <p className="text-sm font-medium">{quote.business?.name || "Unknown Business"}</p>
                     <div className="mt-1 flex items-center gap-2">
                       <Badge variant="outline" className="text-xs">
-                        {quote.type}
+                        {quote.utilityTypes?.join(', ') || "Utility"}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">{quote.sites} sites</span>
+                      <span className="text-xs text-muted-foreground">{quote.sites?.length || 0} sites</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <Badge variant={quote.status === "Pending Review" ? "destructive" : "secondary"}>
+                    <Badge variant={quote.status === "pending" ? "destructive" : "secondary"}>
                       {quote.status}
                     </Badge>
-                    <p className="mt-1 text-xs text-muted-foreground">{quote.date}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{new Date(quote.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
               ))}
@@ -258,9 +188,9 @@ export function DashboardOverview() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {recentTickets.map((ticket) => (
+              {recentTickets.map((ticket: any) => (
                 <div
-                  key={ticket.id}
+                  key={ticket._id}
                   className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-accent/10"
                 >
                   <div className="flex items-center gap-4">
@@ -273,7 +203,7 @@ export function DashboardOverview() {
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium">{ticket.id}</p>
+                        <p className="text-sm font-medium">{ticket._id.substring(ticket._id.length - 6).toUpperCase()}</p>
                         <Badge
                           variant={
                             ticket.priority === "High"
@@ -300,7 +230,7 @@ export function DashboardOverview() {
                     </Badge>
                     <div className="mt-1 flex items-center justify-end gap-1 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      {ticket.time}
+                      {new Date(ticket.createdAt).toLocaleDateString()}
                     </div>
                   </div>
                 </div>
@@ -319,7 +249,7 @@ export function DashboardOverview() {
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Button variant="outline" className="justify-start" asChild>
-              <Link href="/dashboard/customers?action=new">
+              <Link href="/dashboard/businesses?action=new">
                 <Users className="mr-2 h-4 w-4" />
                 Add New Customer
               </Link>

@@ -9,9 +9,12 @@ import { useEffect } from "react"
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
+  console.log("isAuthenticated", isAuthenticated)
+  console.log("isLoading", isLoading)
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
+      console.log("Redirecting to login...")
       router.push("/login")
     }
   }, [isAuthenticated, isLoading, router])

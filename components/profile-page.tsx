@@ -11,31 +11,48 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient, axiosInstance } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
+import { useAuth } from "@/lib/auth-context"
+import { useEffect } from "react"
 
 export function ProfilePage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const { data: profileData, isLoading } = useQuery({
-    queryKey: ["profile"],
-    queryFn: () => apiClient.getProfile(),
+  const { user } = useAuth()
+  
+  const [profile, setProfile] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "", 
+    role: "",
+    bio: "",
   })
 
-  const [profile, setProfile] = useState(
-    profileData || {
-      firstName: "Admin",
-      lastName: "User",
-      email: "admin@company.com",
-      phone: "+1 (555) 123-4567",
-      role: "Super Administrator",
-      bio: "Experienced CRM administrator with a focus on customer success and operational efficiency.",
-    },
-  )
+  useEffect(() => {
+    if (user) {
+        // Split fullname if needed or just use as is. Assuming user has fullname separate
+        const names = user.fullname ? user.fullname.split(' ') : ["", ""]
+        setProfile({
+            firstName: names[0] || "",
+            lastName: names.slice(1).join(' ') || "",
+            email: user.email || "",
+            phone: "", // Phone not currently on user object, need to add to schema or fetch separately
+            role: user.role || "",
+            bio: "", // Bio not on user object
+        })
+    }
+  }, [user])
 
   const updateProfileMutation = useMutation({
     mutationFn: async (data: any) => {
-      const response = await axiosInstance.patch("/profile", data)
-      return response.data
+      const response = await apiClient.updateProfile({
+        fullname: `${data.firstName} ${data.lastName}`,
+        email: data.email,
+        // phone: data.phone,
+        // bio: data.bio
+      })
+      return response
     },
     onSuccess: () => {
       toast({ title: "Success", description: "Profile updated successfully" })
@@ -59,13 +76,7 @@ export function ProfilePage() {
     },
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    )
-  }
+
 
   return (
     <div className="space-y-6">
@@ -92,9 +103,9 @@ export function ProfilePage() {
             </div>
             <div className="text-center">
               <p className="font-medium">
-                {profile.firstName} {profile.lastName}
+                {user?.fullname || "User"}
               </p>
-              <p className="text-sm text-muted-foreground">{profile.role}</p>
+              <p className="text-sm text-muted-foreground">{user?.role || "Role"}</p>
             </div>
           </CardContent>
         </Card>

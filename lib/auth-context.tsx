@@ -45,10 +45,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: apiClient.login,
     onSuccess: (data: any) => {
       console.log("Login successful, response data:", data)
-      if (data.token) {
-        document.cookie = `auth-token=${data.token}; path=/; max-age=86400; SameSite=Lax`
+      if (data.data.token) {
+        console.log("Login successful, token:", data.data.token)
+        document.cookie = `auth-token=${data.data.token}; path=/; max-age=86400; SameSite=Lax`
         // Set default header for immediate use
-        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.token}`
+        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
       }
       queryClient.invalidateQueries({ queryKey: ["user"] })
       toast.success("Login successful!")
@@ -64,10 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signupMutation = useMutation({
     mutationFn: apiClient.signup,
     onSuccess: (data: any) => {
-      if (data.token) {
-        document.cookie = `auth-token=${data.token}; path=/; max-age=86400; SameSite=Lax`
+      if (data.data.token) {
+        document.cookie = `auth-token=${data.data.token}; path=/; max-age=86400; SameSite=Lax`
         // Set default header for immediate use
-        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.token}`
+        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
       }
       queryClient.invalidateQueries({ queryKey: ["user"] })
       toast.success("Account created successfully!")
@@ -85,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
       delete axiosInstance.defaults.headers.common["Authorization"]
       queryClient.setQueryData(["user"], null)
+      queryClient.removeQueries({ queryKey: ["user"] })
       router.push("/login")
       toast.success("Logged out successfully")
     },
@@ -93,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
       delete axiosInstance.defaults.headers.common["Authorization"]
       queryClient.setQueryData(["user"], null)
+      queryClient.removeQueries({ queryKey: ["user"] })
       router.push("/login")
     },
   })
@@ -112,11 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user: user || null,
+        user: user?.data?.user || null,
         login,
         signup,
         logout,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user?.data?.user,
         isLoading,
       }}
     >

@@ -31,7 +31,7 @@ export function WebSocketProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Initialize socket connection
     // Replace with your actual WebSocket server URL
-    const socketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:3001"
+    const socketUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || "http://localhost:5001"
     const socketInstance = io(socketUrl, {
       autoConnect: true,
       reconnection: true,

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Search, MessageSquare } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { apiClient } from "@/lib/api-client"
 import { TicketDetailsDialog } from "./ticket-details-dialog"
 
 export function SupportPage() {
@@ -17,134 +18,20 @@ export function SupportPage() {
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [selectedTicket, setSelectedTicket] = useState<any>(null)
 
-  const { data: tickets = [], isLoading } = useQuery({
+  const { data: ticketsResponse, isLoading } = useQuery({
     queryKey: ["tickets", searchQuery, statusFilter, priorityFilter],
-    queryFn: () => {
-      // const response = await apiClient.getTickets({ search: searchQuery, status: statusFilter, priority: priorityFilter })
-      // return response
-
-      // Mock data - remove when API is ready
-      return [
-        {
-          id: "TKT-1048",
-          customer: "Acme Corporation",
-          customerEmail: "contact@acme.com",
-          subject: "Contract renewal inquiry",
-          category: "Billing",
-          priority: "High",
-          status: "Open",
-          assignee: "Support Team",
-          created: "2024-01-15T10:30:00",
-          lastUpdated: "2024-01-15T14:45:00",
-          messages: [
-            {
-              id: 1,
-              from: "customer",
-              author: "John Doe",
-              content:
-                "We need information about renewing our contracts that expire next month. Can you provide pricing options?",
-              timestamp: "2024-01-15T10:30:00",
-            },
-            {
-              id: 2,
-              from: "agent",
-              author: "Support Team",
-              content:
-                "Thank you for reaching out. I'll have our account manager prepare a renewal proposal for you. They will contact you within 24 hours.",
-              timestamp: "2024-01-15T14:45:00",
-            },
-          ],
-        },
-        {
-          id: "TKT-1047",
-          customer: "Global Industries Ltd",
-          customerEmail: "info@globalind.com",
-          subject: "Billing question regarding recent invoice",
-          category: "Billing",
-          priority: "Medium",
-          status: "Open",
-          assignee: "Finance Team",
-          created: "2024-01-15T08:15:00",
-          lastUpdated: "2024-01-15T09:20:00",
-          messages: [
-            {
-              id: 1,
-              from: "customer",
-              author: "Jane Smith",
-              content: "There appears to be a discrepancy in invoice #INV-2024-001. Can you review this?",
-              timestamp: "2024-01-15T08:15:00",
-            },
-          ],
-        },
-        {
-          id: "TKT-1046",
-          customer: "TechStart Solutions",
-          customerEmail: "hello@techstart.com",
-          subject: "Request to add new site location",
-          category: "Account",
-          priority: "Low",
-          status: "Resolved",
-          assignee: "Account Manager",
-          created: "2024-01-14T16:45:00",
-          lastUpdated: "2024-01-15T11:30:00",
-          messages: [
-            {
-              id: 1,
-              from: "customer",
-              author: "Mike Johnson",
-              content: "We're opening a new office and need to add it to our account.",
-              timestamp: "2024-01-14T16:45:00",
-            },
-            {
-              id: 2,
-              from: "agent",
-              author: "Account Manager",
-              content: "I've added the new site to your account. You can now manage contracts for this location.",
-              timestamp: "2024-01-15T11:30:00",
-            },
-          ],
-        },
-        {
-          id: "TKT-1045",
-          customer: "Retail Plus Inc",
-          customerEmail: "contact@retailplus.com",
-          subject: "Technical issue with online portal",
-          category: "Technical",
-          priority: "High",
-          status: "In Progress",
-          assignee: "Tech Support",
-          created: "2024-01-14T11:20:00",
-          lastUpdated: "2024-01-14T15:40:00",
-          messages: [
-            {
-              id: 1,
-              from: "customer",
-              author: "Sarah Lee",
-              content: "I'm unable to log into the customer portal. Getting error 500.",
-              timestamp: "2024-01-14T11:20:00",
-            },
-            {
-              id: 2,
-              from: "agent",
-              author: "Tech Support",
-              content: "We've identified the issue and are working on a fix. Should be resolved within 2 hours.",
-              timestamp: "2024-01-14T15:40:00",
-            },
-          ],
-        },
-      ]
-    },
+    queryFn: () => apiClient.getTickets({ 
+      search: searchQuery, 
+      status: statusFilter !== "all" ? statusFilter : undefined, 
+      priority: priorityFilter !== "all" ? priorityFilter : undefined 
+    }),
   })
 
-  const filteredTickets = tickets.filter((ticket: any) => {
-    const matchesSearch =
-      ticket.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.subject.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || ticket.status === statusFilter
-    const matchesPriority = priorityFilter === "all" || ticket.priority === priorityFilter
-    return matchesSearch && matchesStatus && matchesPriority
-  })
+  // Access tickets from the response structure { success: true, data: { tickets: [...] } }
+  const tickets = ticketsResponse?.data?.tickets || [];
+
+  // Server does filtering, but we keep client filter for immediate feedback if needed or rely on server refetch
+  const filteredTickets = tickets; // api handles filtering based on query key params
 
   const getPriorityVariant = (priority: string) => {
     switch (priority) {
@@ -172,6 +59,13 @@ export function SupportPage() {
     }
   }
 
+  const { data: statsData } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: apiClient.getDashboardStats,
+  })
+  
+  const overview = statsData?.overview || {}
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -187,7 +81,7 @@ export function SupportPage() {
             <CardTitle className="text-sm font-medium">Open Tickets</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">23</div>
+            <div className="text-2xl font-bold">{overview.openTicketsCount || 0}</div>
             <p className="text-xs text-muted-foreground">Awaiting response</p>
           </CardContent>
         </Card>
@@ -196,7 +90,7 @@ export function SupportPage() {
             <CardTitle className="text-sm font-medium">In Progress</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">{overview.inProgressTicketsCount || 0}</div>
             <p className="text-xs text-muted-foreground">Being handled</p>
           </CardContent>
         </Card>
@@ -205,7 +99,7 @@ export function SupportPage() {
             <CardTitle className="text-sm font-medium">Resolved Today</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">18</div>
+            <div className="text-2xl font-bold">{overview.resolvedTicketsCount || 0}</div>
             <p className="text-xs text-muted-foreground">Successfully closed</p>
           </CardContent>
         </Card>
@@ -276,9 +170,9 @@ export function SupportPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTickets.map((ticket) => (
-                  <TableRow key={ticket.id} className="cursor-pointer" onClick={() => setSelectedTicket(ticket)}>
-                    <TableCell className="font-medium">{ticket.id}</TableCell>
+                {filteredTickets.map((ticket: any) => (
+                  <TableRow key={ticket._id} className="cursor-pointer" onClick={() => setSelectedTicket(ticket)}>
+                    <TableCell className="font-medium">{ticket._id.substring(ticket._id.length - 6).toUpperCase()}</TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium">{ticket.customer}</p>
@@ -299,7 +193,7 @@ export function SupportPage() {
                     </TableCell>
                     {/* <TableCell className="text-sm text-muted-foreground">{ticket.assignee}</TableCell> */}
                     <TableCell className="text-sm text-muted-foreground">
-                      {new Date(ticket.lastUpdated).toLocaleString()}
+                      {new Date(ticket.updatedAt).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -326,7 +220,7 @@ export function SupportPage() {
       <TicketDetailsDialog
         ticket={selectedTicket}
         open={!!selectedTicket}
-        onOpenChange={(open) => !open && setSelectedTicket(null)}
+        onOpenChange={(open: boolean) => !open && setSelectedTicket(null)}
       />
     </div>
   )

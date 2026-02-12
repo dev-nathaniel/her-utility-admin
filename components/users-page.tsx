@@ -43,7 +43,7 @@ export function UsersPage() {
     },
   })
 
-  const users: User[] = response?.users || []
+  const users: User[] = response?.data?.users || []
 
   const filteredUsers = users.filter((user: User) => {
     const matchesSearch =
@@ -85,18 +85,18 @@ export function UsersPage() {
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        {/* <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.overview?.userCount || 0}</div>
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
-        </Card>
+        </Card> */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.overview?.userCount || 0}</div>
