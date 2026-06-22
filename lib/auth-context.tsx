@@ -8,6 +8,8 @@ import { toast } from "sonner"
 export interface User {
   _id: string
   email: string
+  firstName: string
+  lastName: string
   fullname: string
   role: string
   businesses: string[]
@@ -51,6 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Set default header for immediate use
         axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
       }
+      queryClient.setQueryData(["user"], data)
       queryClient.invalidateQueries({ queryKey: ["user"] })
       toast.success("Login successful!")
       console.log("Redirecting to /dashboard")
@@ -70,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Set default header for immediate use
         axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
       }
+      queryClient.setQueryData(["user"], data)
       queryClient.invalidateQueries({ queryKey: ["user"] })
       toast.success("Account created successfully!")
       router.push("/dashboard")

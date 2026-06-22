@@ -16,6 +16,8 @@ import { apiClient } from "@/lib/api-client"
 
 export interface User {
   _id: string
+  firstName: string
+  lastName: string
   fullname: string
   email: string
   phoneNumber: string

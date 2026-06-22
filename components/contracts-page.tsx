@@ -344,6 +344,7 @@ export function ContractsPage() {
                     <SelectItem value="Electricity">Electricity</SelectItem>
                     <SelectItem value="Gas">Gas</SelectItem>
                     <SelectItem value="Water">Water</SelectItem>
+                    <SelectItem value="Telecoms">Telecoms</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
