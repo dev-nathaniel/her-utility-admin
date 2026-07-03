@@ -58,9 +58,11 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
   const queryClient = useQueryClient()
   const [scheduleEmail, setScheduleEmail] = useState(false)
   const [scheduledDate, setScheduledDate] = useState<Date>()
+  const [recipientGroup, setRecipientGroup] = useState<string>("all")
   const [selectedTemplate, setSelectedTemplate] = useState<string>("none")
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
+  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery({
@@ -83,8 +85,8 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
   })
 
   const scheduleEmailMutation = useMutation({
-    mutationFn: (data: { subject: string; message: string; scheduledAt: string; templateVariables?: Record<string, string> }) =>
-      apiClient.scheduleEmail({ ...data, recipientGroup: "all" }),
+    mutationFn: (data: any) =>
+      apiClient.scheduleEmail(data),
     onSuccess: () => {
       toast.success("Email scheduled successfully!")
       queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
@@ -99,10 +101,8 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
     if (selectedTemplate !== "none") {
       const template = templates.find((t: any) => (t._id || t.id) === selectedTemplate)
       if (template) {
-        console.log(template, "compose-email-template")
         setSubject(template.subject)
-        setMessage(template.content)
-        // Initialize variables with empty strings
+        setMessage("")
         const vars: Record<string, string> = {}
         if (Array.isArray(template.variables)) {
           template.variables.forEach((varName: string) => {
@@ -118,12 +118,15 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const emailData = {
+    const emailData: Record<string, any> = {
       subject,
-      message,
-      recipientGroup: "all",
-      templateVariables: Object.keys(templateVariables).length > 0 ? templateVariables : undefined,
-      templateId: selectedTemplate !== "none" ? selectedTemplate : undefined,
+      recipientGroup,
+    }
+    if (selectedTemplate !== "none") {
+      emailData.templateId = selectedTemplate
+      emailData.templateVariables = templateVariables
+    } else {
+      emailData.message = message
     }
 
     if (scheduleEmail) {
@@ -136,9 +139,6 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
     }
   }
 
-  const currentTemplate = templates.find((t: any) => (t._id || t.id) === selectedTemplate)
-  const hasVariables = currentTemplate?.variables?.length > 0
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -150,7 +150,7 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
           <div className="space-y-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="recipients">Recipients</Label>
-              <Select>
+              <Select value={recipientGroup} onValueChange={setRecipientGroup}>
                 <SelectTrigger id="recipients">
                   <SelectValue placeholder="Select recipient group" />
                 </SelectTrigger>
@@ -161,7 +161,7 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
                       All Users
                     </div>
                   </SelectItem>
-                  <SelectItem value="active">Admins</SelectItem>
+                  <SelectItem value="admins">Admins</SelectItem>
                   {/* <SelectItem value="active">Admins (1,180)</SelectItem> */}
                   {/* <SelectItem value="pending">Pending Customers (68)</SelectItem> */}
                   {/* <SelectItem value="enterprise">Enterprise Customers (89)</SelectItem> */}
@@ -201,58 +201,54 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
               />
             </div>
 
-            {hasVariables ? (
-              <div className="space-y-4">
-                <div className="rounded-lg border bg-muted/50 p-4">
-                  <p className="text-sm font-medium mb-3">Template Variables</p>
-                  <p className="text-xs text-muted-foreground mb-4">
-                    Fill in the variables below. They will replace the placeholders in your email.
-                  </p>
-                  <div className="grid gap-3">
-                    {currentTemplate.variables.map((varName: string) => (
-                      <div key={varName} className="grid gap-2">
-                        <Label htmlFor={varName} className="text-sm">
-                          {varName
-                            .split("_")
-                            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-                            .join(" ")}
-                        </Label>
-                        <Input
-                          id={varName}
-                          value={templateVariables[varName] || ""}
-                          onChange={(e) =>
-                            setTemplateVariables((prev) => ({
-                              ...prev,
-                              [varName]: e.target.value,
-                            }))
-                          }
-                          placeholder={`Enter ${varName.replace(/_/g, " ")}...`}
-                        />
-                      </div>
-                    ))}
+            {(() => {
+              const template = templates.find((t: any) => (t._id || t.id) === selectedTemplate)
+              const vars = template?.variables as string[] | undefined
+              return selectedTemplate !== "none" && vars && vars.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border bg-muted/50 p-4">
+                    <p className="text-sm font-medium mb-3">Template Variables</p>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      Fill in the variables below. They will replace the placeholders in your email.
+                    </p>
+                    <div className="grid gap-3">
+                      {vars.map((varName: string) => (
+                        <div key={varName} className="grid gap-2">
+                          <Label htmlFor={`var-${varName}`} className="text-sm">
+                            {varName.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}
+                          </Label>
+                          <Input
+                            id={`var-${varName}`}
+                            value={templateVariables[varName] || ""}
+                            onChange={(e) =>
+                              setTemplateVariables((prev) => ({ ...prev, [varName]: e.target.value }))
+                            }
+                            placeholder={`Enter ${varName.replace(/_/g, " ")}...`}
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                {/* Show preview of the template */}
-                <div className="grid gap-2">
-                  <Label>Email Preview</Label>
-                  <div className="rounded-lg border bg-muted/50 p-4 text-sm whitespace-pre-wrap">{message}</div>
+              ) : selectedTemplate !== "none" ? (
+                <div className="rounded-lg border bg-muted/50 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Template selected (no variables to fill).
+                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                <Label htmlFor="message">Message</Label>
-                <Textarea
-                  id="message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Write your email message here..."
-                  className="min-h-48"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use variables: {"{customer_name}"}, {"{contract_count}"}, {"{total_value}"}
-                </p>
-              </div>
-            )}
+              ) : (
+                <div className="grid gap-2">
+                  <Label htmlFor="message">Message</Label>
+                  <Textarea
+                    id="message"
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="Write your email message here..."
+                    className="min-h-48"
+                  />
+                </div>
+              )
+            })()}
 
             <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">

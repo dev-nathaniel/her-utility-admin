@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, History } from "lucide-react"
-import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
+import { DataTable } from "@/components/ui/data-table"
 import { Badge } from "@/components/ui/badge"
 import { useQuery } from "@tanstack/react-query"
 import { axiosInstance } from "@/lib/api-client"
@@ -62,7 +62,7 @@ export function ActivityLogPage() {
     return items
   }, [activities, searchQuery, entityFilter, actionFilter])
 
-  const columns: DataTableColumn<ActivityEntry>[] = [
+  const columns = [
     {
       key: "action",
       label: "Action",
