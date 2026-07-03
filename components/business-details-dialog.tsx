@@ -77,16 +77,16 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
 
   if (!business) return null
 
-  const displayBusiness = businessDetails?.data?.business || businessDetails?.data || business
+  const displayBusiness = ((businessDetails?.data as any)?.business || businessDetails?.data || business) as Record<string, any>
 
   const extractList = (res: any, key: string) =>
     Array.isArray(res?.data) ? res.data
-    : Array.isArray(res?.data?.[key]) ? res.data[key]
+    : Array.isArray((res?.data as any)?.[key]) ? (res.data as any)[key]
     : Array.isArray(res) ? res
     : Array.isArray(res?.[key]) ? res[key]
     : []
 
-  const sites = Array.isArray(displayBusiness.sites) ? displayBusiness.sites : []
+  const sites: any[] = Array.isArray(displayBusiness.sites) ? displayBusiness.sites : []
 
   const allContracts = extractList(contractsResponse, "utilities")
   const bizUtilityIds = new Set(displayBusiness.utilities || [])

@@ -54,7 +54,7 @@ export function UsersPage() {
     },
   })
 
-  const users: User[] = response?.data?.users || []
+  const users: User[] = (response?.data as any)?.users || []
 
   const filteredUsers = users.filter((user: User) => {
     const matchesSearch =
@@ -76,13 +76,15 @@ export function UsersPage() {
     queryKey: ["dashboard-stats"],
     queryFn: apiClient.getDashboardStats,
     placeholderData: {
-      overview: {
-        userCount: 0,
-        businessCount: 0,
-        siteCount: 0,
-        contractCount: 0,
-      },
-    },
+      data: {
+        overview: {
+          userCount: 0,
+          businessCount: 0,
+          siteCount: 0,
+          contractCount: 0,
+        },
+      }
+    } as any,
   })
 
   const columns: DataTableColumn<User>[] = [
@@ -190,7 +192,7 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Active Users</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.userCount || 0}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.userCount) || 0}</div>
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
         </Card> */}
@@ -199,7 +201,7 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.userCount || 0}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.userCount) || 0}</div>
             <p className="text-xs text-muted-foreground">Total registered users</p>
           </CardContent>
         </Card>
@@ -208,7 +210,7 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Total Businesses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.businessCount || 0}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.businessCount) || 0}</div>
             <p className="text-xs text-muted-foreground">Managed by users</p>
           </CardContent>
         </Card>
@@ -217,7 +219,7 @@ export function UsersPage() {
             <CardTitle className="text-sm font-medium">Total Sites</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.siteCount || 0}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.siteCount) || 0}</div>
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
         </Card>

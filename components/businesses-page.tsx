@@ -52,10 +52,10 @@ export function BusinessesPage() {
     queryFn: () => apiClient.getBusinesses(),
   })
 
-  const businesses = Array.isArray(businessesData?.businesses)
-    ? businessesData.businesses
-    : Array.isArray(businessesData?.data?.businesses)
-      ? businessesData.data.businesses
+  const businesses: any[] = Array.isArray((businessesData as any)?.businesses)
+    ? (businessesData as any).businesses
+    : Array.isArray((businessesData?.data as any)?.businesses)
+      ? (businessesData?.data as any).businesses
       : []
 
   useEffect(() => {
@@ -181,7 +181,7 @@ export function BusinessesPage() {
             <CardTitle className="text-sm font-medium">Total Businesses</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.businessCount || 0}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.businessCount) || 0}</div>
             <p className="text-xs text-muted-foreground">+12% from last month</p>
           </CardContent>
         </Card>
@@ -190,7 +190,7 @@ export function BusinessesPage() {
             <CardTitle className="text-sm font-medium">Contracts</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.contractCount || 0}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.contractCount) || 0}</div>
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
         </Card>

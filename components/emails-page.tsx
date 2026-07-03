@@ -32,26 +32,29 @@ export function EmailsPage() {
   const [cancelEmail, setCancelEmail] = useState<any | null>(null)
   const [createTemplateOpen, setCreateTemplateOpen] = useState(false)
 
-  const { data: sentEmails = [], isLoading: sentLoading } = useQuery({
+  const { data: sentEmailsRes, isLoading: sentLoading } = useQuery({
     queryKey: ["sent-emails"],
     queryFn: () => apiClient.getEmails(),
     // Uncomment mock data for development
     // placeholderData: mockSentEmails,
   })
+  const sentEmails = Array.isArray(sentEmailsRes?.data) ? sentEmailsRes.data : []
 
-  const { data: scheduledEmails = [], isLoading: scheduledLoading } = useQuery({
+  const { data: scheduledEmailsRes, isLoading: scheduledLoading } = useQuery({
     queryKey: ["scheduled-emails"],
     queryFn: () => apiClient.getScheduledEmails(),
     // Uncomment mock data for development
     // placeholderData: mockScheduledEmails,
   })
+  const scheduledEmails = Array.isArray(scheduledEmailsRes?.data) ? scheduledEmailsRes.data : []
 
-  const { data: templates = [], isLoading: templatesLoading } = useQuery({
+  const { data: templatesRes, isLoading: templatesLoading } = useQuery({
     queryKey: ["email-templates"],
     queryFn: apiClient.getTemplates,
     // Uncomment mock data for development
     // placeholderData: mockTemplates,
   })
+  const templates = Array.isArray(templatesRes?.data) ? templatesRes.data : []
 
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -79,7 +82,7 @@ export function EmailsPage() {
             <CardTitle className="text-sm font-medium">Emails Sent</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.emailsSentCount}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.emailsSentCount) || 0}</div>
             <p className="text-xs text-muted-foreground">This month</p>
           </CardContent>
         </Card>
@@ -97,7 +100,7 @@ export function EmailsPage() {
             <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.emailScheduledCount}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.emailScheduledCount) || 0}</div>
             <p className="text-xs text-muted-foreground">Upcoming sends</p>
           </CardContent>
         </Card> */}
@@ -106,7 +109,7 @@ export function EmailsPage() {
             <CardTitle className="text-sm font-medium">Templates</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.overview?.templatesCount}</div>
+            <div className="text-2xl font-bold">{((stats as any)?.overview?.templatesCount) || 0}</div>
             <p className="text-xs text-muted-foreground">Ready to use</p>
           </CardContent>
         </Card>

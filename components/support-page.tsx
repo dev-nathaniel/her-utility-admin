@@ -35,7 +35,7 @@ export function SupportPage() {
   })
 
   // Access tickets from the response structure { success: true, data: { tickets: [...] } }
-  const tickets = ticketsResponse?.data?.tickets || [];
+  const tickets = (ticketsResponse?.data as any)?.tickets || [];
 
   // Server does filtering, but we keep client filter for immediate feedback if needed or rely on server refetch
   const filteredTickets = tickets; // api handles filtering based on query key params
@@ -71,7 +71,7 @@ export function SupportPage() {
     queryFn: apiClient.getDashboardStats,
   })
   
-  const overview = statsData?.overview || {}
+  const overview = (statsData as any)?.overview || {}
 
   return (
     <div className="space-y-6">

@@ -22,7 +22,7 @@ export function DashboardOverview() {
     },
   })
 
-  const overview = response?.overview || {}
+  const overview = (response as any)?.overview || {}
   const recentBusinesses = overview.recentBusinesses || []
   const recentQuotes = overview.recentQuotes || []
   const recentTickets = overview.recentTickets || []

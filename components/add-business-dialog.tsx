@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { apiClient } from "@/lib/api-client"
+import { apiClient, type UserData } from "@/lib/api-client"
 import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
@@ -41,7 +41,7 @@ export function AddBusinessDialog({ open, onOpenChange }: AddBusinessDialogProps
     queryKey: ["users-list"],
     queryFn: async () => {
       const response = await apiClient.getUsers()
-      const raw = response?.data
+      const raw = response?.data as unknown as { users: UserData[] } | UserData[]
       return Array.isArray(raw) ? raw : (raw?.users || [])
     },
   })

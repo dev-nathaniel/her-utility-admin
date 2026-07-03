@@ -94,10 +94,16 @@ export interface ContractData {
 }
 
 export interface DashboardStats {
+  overview?: Record<string, any>
   totalBusinesses?: number
   totalContracts?: number
   totalRevenue?: number
   activeUsers?: number
+  siteCount?: number
+  userCount?: number
+  emailsSentCount?: number
+  emailScheduledCount?: number
+  templatesCount?: number
   [key: string]: unknown
 }
 
@@ -213,7 +219,7 @@ export const apiClient = {
     return response.data
   },
 
-  signup: async (data: { email: string; password: string }): Promise<ApiResponse<AuthResponse>> => {
+  signup: async (data: { email: string; password: string; firstName?: string; lastName?: string; name?: string }): Promise<ApiResponse<AuthResponse>> => {
     const response = await axiosInstance.post("/auth/register", data)
     return response.data
   },

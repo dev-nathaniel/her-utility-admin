@@ -105,7 +105,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     refetchInterval: 60000,
   })
 
-  const overview = stats?.overview || {}
+  const overview = stats?.data?.overview || {}
 
   const navigationItems = navigation.map(item => {
     if (item.name === "Utility Contracts") {
@@ -145,8 +145,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const allUsers = Array.isArray(allUsersData?.data) ? allUsersData.data : (allUsersData?.data?.users || [])
-    const allBiz = Array.isArray(allBizData?.data) ? allBizData.data : (allBizData?.data?.businesses || [])
+    const allUsers = Array.isArray(allUsersData?.data) ? allUsersData.data : ((allUsersData?.data as any)?.users || [])
+    const allBiz = Array.isArray(allBizData?.data) ? allBizData.data : ((allBizData?.data as any)?.businesses || [])
 
     const filteredUsers = allUsers.filter(
       (u: any) =>

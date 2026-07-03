@@ -54,16 +54,17 @@ export function SiteDetailsDialog({ site, open, onOpenChange }: SiteDetailsDialo
     queryKey: ["site", site?.id],
     queryFn: () => apiClient.getSiteWithContracts(site.id),
     enabled: !!site && open,
-    placeholderData: site,
+    placeholderData: site as any,
   })
 
-  const { data: contracts = [], isLoading: contractsLoading } = useQuery({
+  const { data: contractsRes, isLoading: contractsLoading } = useQuery({
     queryKey: ["site-contracts", site?.id],
     queryFn: () => apiClient.getSiteContracts(site.id),
     enabled: !!site && open,
     // Uncomment mock data for development
     // placeholderData: mockSiteContracts,
   })
+  const contracts = Array.isArray(contractsRes?.data) ? contractsRes.data : []
 
   if (!site) return null
 

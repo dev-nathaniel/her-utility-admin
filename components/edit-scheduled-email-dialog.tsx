@@ -22,7 +22,7 @@ import { CalendarIcon, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
 interface EditScheduledEmailDialogProps {
@@ -55,12 +55,12 @@ export function EditScheduledEmailDialog({ open, onOpenChange, email }: EditSche
   const updateEmailMutation = useMutation({
     mutationFn: (data: any) => apiClient.updateScheduledEmail({ id: email!.id.toString(), data }),
     onSuccess: () => {
-      toast({ title: "Scheduled email updated successfully!" })
+      toast.success("Scheduled email updated successfully!")
       queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
       onOpenChange(false)
     },
     onError: () => {
-      toast({ title: "Failed to update email", variant: "destructive" })
+      toast.error("Failed to update email")
     },
   })
 

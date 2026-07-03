@@ -76,20 +76,20 @@ export function UserDetailsDialog({ user, open, onOpenChange }: UserDetailsDialo
 
   if (!user) return null
 
-  const displayUser = userDetails?.data?.user || user
+  const displayUser = ((userDetails?.data as any)?.user || user) as User
 
   const rawBusinesses = businessesData?.data
-  const businessesList = Array.isArray(rawBusinesses) ? rawBusinesses : (rawBusinesses?.businesses || [])
+  const businessesList: any[] = Array.isArray(rawBusinesses) ? rawBusinesses : ((rawBusinesses as any)?.businesses || [])
   const userBusinesses = businessesList.filter(
-    (b) => b.members?.some((m) => m.userId === displayUser._id)
+    (b) => b.members?.some((m: any) => m.userId === displayUser._id)
   )
 
   const userSitesIds = userBusinesses.flatMap((b) => b.sites || [])
 
-  const allSites = Array.isArray(sitesData?.data) ? sitesData.data : (sitesData?.data?.sites || [])
-  const relevantSites = allSites.filter((s) => userSitesIds.includes(s._id))
+  const allSites: any[] = Array.isArray(sitesData?.data) ? sitesData.data : ((sitesData?.data as any)?.sites || [])
+  const relevantSites = allSites.filter((s: any) => userSitesIds.includes(s._id))
 
-  const allContracts = Array.isArray(contractsData?.data) ? contractsData.data : (contractsData?.data?.contracts || [])
+  const allContracts: any[] = Array.isArray(contractsData?.data) ? contractsData.data : ((contractsData?.data as any)?.contracts || [])
   const relevantSiteIds = new Set(relevantSites.map((s) => s._id))
   const relevantContracts = allContracts.filter((c) => relevantSiteIds.has(c.siteId || c.site?._id))
 

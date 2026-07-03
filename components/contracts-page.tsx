@@ -128,7 +128,7 @@ export function ContractsPage() {
     queryFn: apiClient.getDashboardStats,
   })
   
-  const overview = statsData?.overview || {}
+  const overview = (statsData as any)?.overview || {}
 
   // Real stats from API
   const stats = [
@@ -160,9 +160,8 @@ export function ContractsPage() {
 
   // Map Server Response to UI Contract Shape
   // The server response is now { success: true, message: "...", data: { utilities: [...] } }
-  // So we access contractsResponse.data.utilities
   const contracts =
-    contractsResponse?.data?.utilities?.map((util: any) => ({
+    ((contractsResponse?.data as any)?.utilities || [])?.map((util: any) => ({
       id: util._id,
       contractNumber: util.identifier || util.previousMeterId || "PENDING",
       customer: util.business?.name || "Unknown Business",

@@ -12,7 +12,7 @@ import {
 import { AlertTriangle } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
 interface DeactivateBusinessDialogProps {
@@ -27,13 +27,13 @@ export function DeactivateBusinessDialog({ open, onOpenChange, business }: Deact
   const deactivateBusinessMutation = useMutation({
     mutationFn: () => apiClient.deactivateBusiness(business.id),
     onSuccess: () => {
-      toast({ title: "Business deactivated successfully" })
+      toast.success("Business deactivated successfully")
       queryClient.invalidateQueries({ queryKey: ["businesses"] })
       queryClient.invalidateQueries({ queryKey: ["business", business.id] })
       onOpenChange(false)
     },
     onError: () => {
-      toast({ title: "Failed to deactivate business", variant: "destructive" })
+      toast.error("Failed to deactivate business")
     },
   })
 

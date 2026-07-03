@@ -30,30 +30,6 @@ interface ComposeEmailDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-const mockTemplates = [
-  {
-    id: "welcome",
-    name: "Welcome Email",
-    subject: "Welcome to {{company_name}}",
-    body: "Dear {{customer_name}},\n\nWelcome to {{company_name}}! We're excited to have you on board.\n\nYour account has been successfully created with the email {{email}}.\n\nBest regards,\nThe Team",
-    variables: ["customer_name", "company_name", "email"],
-  },
-  {
-    id: "renewal",
-    name: "Contract Renewal",
-    subject: "Contract Renewal Reminder - {{customer_name}}",
-    body: "Dear {{customer_name}},\n\nThis is a friendly reminder that your contract is due for renewal on {{renewal_date}}.\n\nYou currently have {{contract_count}} active contracts with a total value of {{total_value}}.\n\nPlease contact us to discuss renewal options.\n\nBest regards,\nThe Team",
-    variables: ["customer_name", "renewal_date", "contract_count", "total_value"],
-  },
-  {
-    id: "newsletter",
-    name: "Monthly Newsletter",
-    subject: "{{company_name}} - Monthly Newsletter",
-    body: "Dear {{customer_name}},\n\nHere's what's new this month at {{company_name}}!\n\n[Newsletter content goes here]\n\nBest regards,\nThe Team",
-    variables: ["customer_name", "company_name"],
-  },
-]
-
 export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogProps) {
   const queryClient = useQueryClient()
   const [scheduleEmail, setScheduleEmail] = useState(false)
@@ -65,12 +41,11 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
   
 
-  const { data: templates = [], isLoading: templatesLoading } = useQuery({
+  const { data: templatesResponse, isLoading: templatesLoading } = useQuery({
     queryKey: ["email-templates"],
     queryFn: () => apiClient.getTemplates(),
-    // Mock data as fallback
-    placeholderData: mockTemplates,
   })
+  const templates = (((templatesResponse as any)?.data?.templates) || []) as any[]
 
   const sendEmailMutation = useMutation({
     mutationFn: (data: any) => apiClient.sendEmail(data),

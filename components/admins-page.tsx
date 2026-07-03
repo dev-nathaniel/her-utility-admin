@@ -19,7 +19,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import { Loader2 } from "lucide-react"
@@ -38,7 +38,7 @@ export function AdminsPage() {
     // placeholderData: mockAdmins,
   })
 
-  const admins = adminsData?.data?.admins || []
+  const admins = Array.isArray(adminsData?.data) ? adminsData.data : (adminsData?.data as any)?.admins || []
 
   const { data: pendingAdminsData, isLoading: pendingLoading } = useQuery({
     queryKey: ["pending-admins"],
@@ -47,42 +47,42 @@ export function AdminsPage() {
     // placeholderData: mockPendingAdmins,
   })
 
-  const pendingAdmins = pendingAdminsData?.data?.admins || []
+  const pendingAdmins = Array.isArray(pendingAdminsData?.data) ? pendingAdminsData.data : (pendingAdminsData?.data as any)?.admins || []
 
   const verifyAdminMutation = useMutation({
     mutationFn: (adminId: string) => apiClient.approveAdmin(adminId),
     onSuccess: () => {
-      toast({ title: `${selectedAdmin?.name} has been verified and can now access the system` })
+      toast.success(`${selectedAdmin?.name} has been verified and can now access the system`)
       queryClient.invalidateQueries({ queryKey: ["admins"] })
       queryClient.invalidateQueries({ queryKey: ["pending-admins"] })
       setVerifyDialogOpen(false)
       setSelectedAdmin(null)
     },
     onError: () => {
-      toast({ title: "Failed to verify admin", variant: "destructive" })
+      toast.error("Failed to verify admin")
     },
   })
 
   const rejectAdminMutation = useMutation({
     mutationFn: (adminId: string) => apiClient.rejectAdmin(adminId),
     onSuccess: () => {
-      toast({ title: "Admin registration rejected" })
+      toast.success("Admin registration rejected")
       queryClient.invalidateQueries({ queryKey: ["pending-admins"] })
     },
     onError: () => {
-      toast({ title: "Failed to reject admin", variant: "destructive" })
+      toast.error("Failed to reject admin")
     },
   })
 
   const createAdminMutation = useMutation({
     mutationFn: (data: any) => apiClient.createAdmin(data),
     onSuccess: () => {
-      toast({ title: "Admin account created successfully" })
+      toast.success("Admin account created successfully")
       queryClient.invalidateQueries({ queryKey: ["admins"] })
       setAddAdminOpen(false)
     },
     onError: () => {
-      toast({ title: "Failed to create admin", variant: "destructive" })
+      toast.error("Failed to create admin")
     },
   })
 

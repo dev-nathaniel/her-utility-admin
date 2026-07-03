@@ -114,7 +114,7 @@ export function DataTable<T>({
                 >
                   {columns.map((col) => (
                     <TableCell key={col.key} className={col.className}>
-                      {col.render ? col.render(item) : String(item[col.key] ?? "")}
+                      {col.render ? col.render(item) : String((item as any)[col.key] ?? "")}
                     </TableCell>
                   ))}
                 </TableRow>

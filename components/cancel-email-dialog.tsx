@@ -12,7 +12,7 @@ import {
 import { AlertTriangle } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
 interface CancelEmailDialogProps {
@@ -31,12 +31,12 @@ export function CancelEmailDialog({ open, onOpenChange, email }: CancelEmailDial
   const cancelEmailMutation = useMutation({
     mutationFn: () => apiClient.cancelScheduledEmail(email!.id.toString()),
     onSuccess: () => {
-      toast({ title: "Scheduled email cancelled successfully!" })
+      toast.success("Scheduled email cancelled successfully!")
       queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
       onOpenChange(false)
     },
     onError: () => {
-      toast({ title: "Failed to cancel email", variant: "destructive" })
+      toast.error("Failed to cancel email")
     },
   })
 

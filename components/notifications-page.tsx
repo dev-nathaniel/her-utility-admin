@@ -16,10 +16,11 @@ export function NotificationsPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const { data: notifications = [], isLoading } = useQuery({
+  const { data: notificationsRes, isLoading } = useQuery({
     queryKey: ["notifications"],
     queryFn: () => apiClient.getNotifications(),
   })
+  const notifications = Array.isArray(notificationsRes?.data) ? notificationsRes.data : []
 
   const markAsReadMutation = useMutation({
     mutationFn: (id: number) => apiClient.markNotificationRead(id),

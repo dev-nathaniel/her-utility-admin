@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
 interface EditBusinessDialogProps {
@@ -32,13 +32,13 @@ export function EditBusinessDialog({ open, onOpenChange, business }: EditBusines
   const updateBusinessMutation = useMutation({
     mutationFn: (data: any) => apiClient.updateBusiness({ id: business.id, data }),
     onSuccess: () => {
-      toast({ title: "Business updated successfully!" })
+      toast.success("Business updated successfully!")
       queryClient.invalidateQueries({ queryKey: ["businesses"] })
       queryClient.invalidateQueries({ queryKey: ["business", business.id] })
       onOpenChange(false)
     },
     onError: () => {
-      toast({ title: "Failed to update business", variant: "destructive" })
+      toast.error("Failed to update business")
     },
   })
 

@@ -24,11 +24,12 @@ export function CreateQuoteDialog({ utilityId, open, onOpenChange }: CreateQuote
   const queryClient = useQueryClient()
 
   // Fetch Utility Info to pre-fill and link
-  const { data: utility, isLoading: isLoadingUtility } = useQuery({
+  const { data: utilityResponse, isLoading: isLoadingUtility } = useQuery({
     queryKey: ["utility", utilityId],
     queryFn: () => (utilityId ? apiClient.getContract(utilityId) : null),
     enabled: !!utilityId,
   })
+  const utility = (utilityResponse as any)?.data
 
   // Create Quote Mutation
   const createQuoteMutation = useMutation({

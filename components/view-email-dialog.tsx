@@ -29,12 +29,12 @@ export function ViewEmailDialog({ open, onOpenChange, email }: ViewEmailDialogPr
       return apiClient.getEmail(email!._id)
     },
     enabled: !!email && open,
-    placeholderData: email,
+    placeholderData: email as any,
   })
 
   if (!email) return null
 
-  const displayEmail = emailDetails || email
+  const displayEmail: any = emailDetails?.data || email
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

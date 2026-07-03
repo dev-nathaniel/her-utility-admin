@@ -45,10 +45,10 @@ export function QuotesPage() {
     queryFn: apiClient.getDashboardStats,
   })
   
-  const overview = statsData?.overview || {}
+  const overview = (statsData as any)?.overview || {}
 
   // Map Server Response to UI Quote Shape
-  const quotes = quotesResponse?.quotes?.map((q: any) => ({
+  const quotes = ((quotesResponse as any)?.data?.quotes || (quotesResponse as any)?.quotes || [])?.map((q: any) => ({
     id: q._id,
     customer: q.business?.name || "Unknown Business",
     email: q.requester?.email || "Unknown Email",

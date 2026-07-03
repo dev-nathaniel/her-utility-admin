@@ -22,6 +22,9 @@ export interface User {
 interface AuthCredentials {
   email: string
   password: string
+  firstName?: string
+  lastName?: string
+  name?: string
 }
 
 interface AuthContextType {
