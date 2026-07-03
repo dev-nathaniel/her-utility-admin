@@ -54,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
       }
       queryClient.setQueryData(["user"], data)
-      queryClient.invalidateQueries({ queryKey: ["user"] })
       toast.success("Login successful!")
       console.log("Redirecting to /dashboard")
       router.push("/dashboard")
@@ -74,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
       }
       queryClient.setQueryData(["user"], data)
-      queryClient.invalidateQueries({ queryKey: ["user"] })
       toast.success("Account created successfully!")
       router.push("/dashboard")
     },
