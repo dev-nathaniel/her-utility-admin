@@ -19,12 +19,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Users } from "lucide-react"
+import { CalendarIcon, Users, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { toast } from "@/hooks/use-toast"
-import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 interface ComposeEmailDialogProps {
   open: boolean
@@ -62,7 +61,7 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
   const [selectedTemplate, setSelectedTemplate] = useState<string>("none")
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
-  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
+  
 
   const { data: templates = [], isLoading: templatesLoading } = useQuery({
     queryKey: ["email-templates"],
@@ -71,34 +70,30 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
     placeholderData: mockTemplates,
   })
 
-  // const { data: recipients } = useQuery({
-  //   queryKey: ["email-recipients"],
-  //   queryFn: () => apiClient.getEmailRecipients(),
-  // })
-
   const sendEmailMutation = useMutation({
     mutationFn: (data: any) => apiClient.sendEmail(data),
     onSuccess: () => {
-      toast({ title: "Email sent successfully!" })
+      toast.success("Email sent successfully!")
       queryClient.invalidateQueries({ queryKey: ["sent-emails"] })
       onOpenChange(false)
     },
     onError: () => {
-      toast({ title: "Failed to send email", variant: "destructive" })
+      toast.error("Failed to send email")
     },
   })
 
-  // const scheduleEmailMutation = useMutation({
-  //   mutationFn: (data: any) => apiClient.scheduleEmail(data),
-  //   onSuccess: () => {
-  //     toast({ title: "Email scheduled successfully!" })
-  //     queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
-  //     onOpenChange(false)
-  //   },
-  //   onError: () => {
-  //     toast({ title: "Failed to schedule email", variant: "destructive" })
-  //   },
-  // })
+  const scheduleEmailMutation = useMutation({
+    mutationFn: (data: { subject: string; message: string; scheduledAt: string; templateVariables?: Record<string, string> }) =>
+      apiClient.scheduleEmail({ ...data, recipientGroup: "all" }),
+    onSuccess: () => {
+      toast.success("Email scheduled successfully!")
+      queryClient.invalidateQueries({ queryKey: ["scheduled-emails"] })
+      onOpenChange(false)
+    },
+    onError: () => {
+      toast.error("Failed to schedule email")
+    },
+  })
 
   useEffect(() => {
     if (selectedTemplate !== "none") {
@@ -119,21 +114,23 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
     } else {
       setTemplateVariables({})
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTemplate]) // Removed templates from dependencies
+  }, [selectedTemplate, templates])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const emailData = {
       subject,
       message,
-      variables: templateVariables,
-      templateId: selectedTemplate !== "none" ? selectedTemplate : null,
-      scheduledDate: scheduleEmail ? scheduledDate : null,
+      recipientGroup: "all",
+      templateVariables: Object.keys(templateVariables).length > 0 ? templateVariables : undefined,
+      templateId: selectedTemplate !== "none" ? selectedTemplate : undefined,
     }
 
     if (scheduleEmail) {
-      // scheduleEmailMutation.mutate(emailData)
+      scheduleEmailMutation.mutate({
+        ...emailData,
+        scheduledAt: scheduledDate?.toISOString() || new Date().toISOString(),
+      })
     } else {
       sendEmailMutation.mutate(emailData)
     }
@@ -257,13 +254,13 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
               </div>
             )}
 
-            {/* <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="flex items-center justify-between rounded-lg border p-4">
               <div className="space-y-0.5">
                 <Label htmlFor="schedule">Schedule Email</Label>
                 <p className="text-sm text-muted-foreground">Send this email at a specific date and time</p>
               </div>
               <Switch id="schedule" checked={scheduleEmail} onCheckedChange={setScheduleEmail} />
-            </div> */}
+            </div>
 
             {scheduleEmail && (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -298,10 +295,8 @@ export function ComposeEmailDialog({ open, onOpenChange }: ComposeEmailDialogPro
             {/* <Button type="button" variant="outline">
               Save as Draft
             </Button> */}
-            <Button type="submit" disabled={sendEmailMutation.isPending}>
-              {/* <Button type="submit" disabled={sendEmailMutation.isPending || scheduleEmailMutation.isPending}> */}
-              {(sendEmailMutation.isPending) && (
-                // {(sendEmailMutation.isPending || scheduleEmailMutation.isPending) && (
+            <Button type="submit" disabled={sendEmailMutation.isPending || scheduleEmailMutation.isPending}>
+              {(sendEmailMutation.isPending || scheduleEmailMutation.isPending) && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               {scheduleEmail ? "Schedule Email" : "Send Now"}

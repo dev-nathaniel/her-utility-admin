@@ -40,7 +40,7 @@ import { TabsList } from "@/components/ui/tabs"
 
 import { Tabs } from "@/components/ui/tabs"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,7 +50,7 @@ import { Search, Plus, MapPin, Zap, Building2, Calendar, AlertTriangle, AlertCir
 import { ContractDetailsDialog } from "./contract-details-dialog"
 import { SiteDetailsDialog } from "./site-details-dialog"
 import { apiClient } from "@/lib/api-client"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 // Mock data preserved for reference but disabled
 // const mockContracts = [
@@ -95,13 +95,19 @@ const mockSites = [
 
 export function ContractsPage() {
   const router = useRouter()
-  const [searchQuery, setSearchQuery] = useState("")
+  const searchParams = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
   const [statusFilter, setStatusFilter] = useState("all")
   const [typeFilter, setTypeFilter] = useState("all")
   const [selectedContract, setSelectedContract] = useState<any>(null)
   const [selectedSite, setSelectedSite] = useState<any>(null)
   const [addContractOpen, setAddContractOpen] = useState(false)
   const [addSiteOpen, setAddSiteOpen] = useState(false)
+
+  useEffect(() => {
+    const q = searchParams.get("search")
+    if (q) setSearchQuery(q)
+  }, [searchParams])
 
   const { data: contractsResponse, isLoading: contractsLoading, error } = useQuery({
     queryKey: ["contracts", searchQuery, statusFilter, typeFilter],

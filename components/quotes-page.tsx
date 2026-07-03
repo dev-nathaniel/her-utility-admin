@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -16,13 +16,18 @@ import { useSearchParams } from "next/navigation"
 
 export function QuotesPage() {
   const searchParams = useSearchParams()
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedQuote, setSelectedQuote] = useState<any>(null)
   
   // Check for action in URL (e.g., from contracts page)
   const [createOpen, setCreateOpen] = useState(searchParams.get("action") === "create")
   const defaultUtilityId = searchParams.get("utilityId")
+
+  useEffect(() => {
+    const q = searchParams.get("search")
+    if (q) setSearchQuery(q)
+  }, [searchParams])
 
   const { data: quotesResponse, isLoading } = useQuery({
     queryKey: ["quotes", searchQuery, statusFilter],

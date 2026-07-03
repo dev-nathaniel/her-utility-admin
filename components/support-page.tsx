@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,12 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { apiClient } from "@/lib/api-client"
 import { TicketDetailsDialog } from "./ticket-details-dialog"
+import { useSearchParams } from "next/navigation"
 
 export function SupportPage() {
-  const [searchQuery, setSearchQuery] = useState("")
+  const searchParams = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
   const [statusFilter, setStatusFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
   const [selectedTicket, setSelectedTicket] = useState<any>(null)
+
+  useEffect(() => {
+    const q = searchParams.get("search")
+    if (q) setSearchQuery(q)
+  }, [searchParams])
 
   const { data: ticketsResponse, isLoading } = useQuery({
     queryKey: ["tickets", searchQuery, statusFilter, priorityFilter],

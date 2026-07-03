@@ -26,9 +26,9 @@ export function LoginForm() {
 
     try {
       await login({ email, password })
-      // Success is handled in the mutation onSuccess
     } catch (error) {
-      // Error is handled in the mutation onError
+      // Error is handled in the mutation onError, but we log locally too
+      console.error("Login error:", error)
     } finally {
       setLoading(false)
     }

@@ -7,12 +7,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Camera, Save, Loader2 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient, axiosInstance } from "@/lib/api-client"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"
-import { useEffect } from "react"
 
 export function ProfilePage() {
   const { toast } = useToast()
@@ -27,6 +26,12 @@ export function ProfilePage() {
     phone: "", 
     role: "",
     bio: "",
+  })
+
+  const [passwords, setPasswords] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
   })
 
   useEffect(() => {
@@ -186,23 +191,39 @@ export function ProfilePage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="currentPassword">Current Password</Label>
-            <Input id="currentPassword" type="password" />
+            <Input
+              id="currentPassword"
+              type="password"
+              value={passwords.currentPassword}
+              onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="newPassword">New Password</Label>
-            <Input id="newPassword" type="password" />
+            <Input
+              id="newPassword"
+              type="password"
+              value={passwords.newPassword}
+              onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm New Password</Label>
-            <Input id="confirmPassword" type="password" />
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={passwords.confirmPassword}
+              onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
+            />
           </div>
           <Button
             variant="secondary"
             disabled={updatePasswordMutation.isPending}
             onClick={() => {
-              const currentPassword = (document.getElementById("currentPassword") as HTMLInputElement)?.value
-              const newPassword = (document.getElementById("newPassword") as HTMLInputElement)?.value
-              updatePasswordMutation.mutate({ currentPassword, newPassword })
+              updatePasswordMutation.mutate({
+                currentPassword: passwords.currentPassword,
+                newPassword: passwords.newPassword,
+              })
             }}
           >
             {updatePasswordMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

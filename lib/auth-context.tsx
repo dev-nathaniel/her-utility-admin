@@ -19,10 +19,15 @@ export interface User {
   updatedAt: string
 }
 
+interface AuthCredentials {
+  email: string
+  password: string
+}
+
 interface AuthContextType {
   user: User | null
-  login: (data: any) => Promise<void>
-  signup: (data: any) => Promise<void>
+  login: (data: AuthCredentials) => Promise<void>
+  signup: (data: AuthCredentials) => Promise<void>
   logout: () => Promise<void>
   isAuthenticated: boolean
   isLoading: boolean
@@ -30,12 +35,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function extractUser(response: unknown): User | null {
+  if (!response || typeof response !== "object") return null
+  const obj = response as Record<string, unknown>
+  if (obj.data && typeof obj.data === "object" && "user" in (obj.data as Record<string, unknown>)) {
+    return (obj.data as Record<string, unknown>).user as User
+  }
+  if ("user" in obj) return obj.user as User
+  return null
+}
+
+function extractToken(response: unknown): string | null {
+  if (!response || typeof response !== "object") return null
+  const obj = response as Record<string, unknown>
+  const inner = obj.data && typeof obj.data === "object" ? (obj.data as Record<string, unknown>) : obj
+  return (inner?.token as string) || null
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const queryClient = useQueryClient()
 
   // Fetch current user
-  const { data: user, isLoading, isError } = useQuery({
+  const { data: userResponse, isLoading, isError } = useQuery({
     queryKey: ["user"],
     queryFn: apiClient.getCurrentUser,
     retry: false,
@@ -45,39 +67,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: apiClient.login,
-    onSuccess: (data: any) => {
-      console.log("Login successful, response data:", data)
-      if (data.data.token) {
-        console.log("Login successful, token:", data.data.token)
-        document.cookie = `auth-token=${data.data.token}; path=/; max-age=86400; SameSite=Lax`
-        // Set default header for immediate use
-        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
-      }
-      queryClient.setQueryData(["user"], data)
-      toast.success("Login successful!")
-      console.log("Redirecting to /dashboard")
-      router.push("/dashboard")
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Login failed")
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } }
+      toast.error(err.response?.data?.message || "Login failed")
     },
   })
 
   // Signup mutation
   const signupMutation = useMutation({
     mutationFn: apiClient.signup,
-    onSuccess: (data: any) => {
-      if (data.data.token) {
-        document.cookie = `auth-token=${data.data.token}; path=/; max-age=86400; SameSite=Lax`
-        // Set default header for immediate use
-        axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${data.data.token}`
-      }
-      queryClient.setQueryData(["user"], data)
-      toast.success("Account created successfully!")
-      router.push("/dashboard")
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || "Signup failed")
+    onError: (error: unknown) => {
+      const err = error as { response?: { data?: { message?: string } } }
+      toast.error(err.response?.data?.message || "Signup failed")
     },
   })
 
@@ -102,12 +103,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   })
 
-  const login = async (data: any) => {
-    await loginMutation.mutateAsync(data)
+  const login = async (data: AuthCredentials) => {
+    const result = await loginMutation.mutateAsync(data)
+    const token = extractToken(result)
+    if (token) {
+      document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`
+      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`
+    }
+    queryClient.setQueryData(["user"], result)
+    toast.success("Login successful!")
+    window.location.href = "/dashboard"
   }
 
-  const signup = async (data: any) => {
-    await signupMutation.mutateAsync(data)
+  const signup = async (data: AuthCredentials) => {
+    const result = await signupMutation.mutateAsync(data)
+    const token = extractToken(result)
+    if (token) {
+      document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`
+      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`
+    }
+    queryClient.setQueryData(["user"], result)
+    toast.success("Account created successfully!")
+    window.location.href = "/dashboard"
   }
 
   const logout = async () => {
@@ -117,11 +134,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider
       value={{
-        user: user?.data?.user || null,
+        user: extractUser(userResponse),
         login,
         signup,
         logout,
-        isAuthenticated: !!user?.data?.user,
+        isAuthenticated: !!extractUser(userResponse),
         isLoading,
       }}
     >

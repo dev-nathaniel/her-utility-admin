@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { toast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 
 interface CreateTemplateDialogProps {
@@ -36,17 +36,16 @@ export function CreateTemplateDialog({ open, onOpenChange }: CreateTemplateDialo
   const createTemplateMutation = useMutation({
     mutationFn: (data: any) => apiClient.createTemplate(data),
     onSuccess: () => {
-      toast({ title: "Template created successfully!" })
+      toast.success("Template created successfully!")
       queryClient.invalidateQueries({ queryKey: ["email-templates"] })
       onOpenChange(false)
-      // Reset form
       setTemplateName("")
       setCategory("")
       setSubject("")
       setBody("")
     },
     onError: () => {
-      toast({ title: "Failed to create template", variant: "destructive" })
+      toast.error("Failed to create template")
     },
   })
 
@@ -56,7 +55,7 @@ export function CreateTemplateDialog({ open, onOpenChange }: CreateTemplateDialo
       name: templateName,
       category,
       subject,
-      body,
+      content: body,
     })
   }
 

@@ -8,6 +8,7 @@ import { SearchProvider } from "@/lib/search-provider"
 import { WebSocketProvider } from "@/lib/websocket-provider"
 import { Toaster } from "sonner"
 import { Suspense } from "react"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -26,14 +27,16 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider>
-            <AuthProvider>
-              <WebSocketProvider>
-                <Suspense fallback={<div>Loading...</div>}>
-                  <SearchProvider>{children}</SearchProvider>
-                </Suspense>
-                <Toaster richColors position="top-right" />
-              </WebSocketProvider>
-            </AuthProvider>
+            <ErrorBoundary>
+              <AuthProvider>
+                <WebSocketProvider>
+                  <Suspense fallback={<div>Loading...</div>}>
+                    <SearchProvider>{children}</SearchProvider>
+                  </Suspense>
+                  <Toaster richColors position="top-right" />
+                </WebSocketProvider>
+              </AuthProvider>
+            </ErrorBoundary>
           </QueryProvider>
         </ThemeProvider>
       </body>

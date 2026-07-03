@@ -1,20 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Filter, MoreVertical, MapPin, Zap } from "lucide-react"
+import { Plus, MapPin, Zap } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { AddBusinessDialog } from "./add-business-dialog"
 import { BusinessDetailsDialog } from "./business-details-dialog"
 import { EditBusinessDialog } from "./edit-business-dialog"
 import { DeactivateBusinessDialog } from "./deactivate-business-dialog"
 import { useQuery } from "@tanstack/react-query"
-import { apiClient, axiosInstance } from "@/lib/api-client"
+import { apiClient } from "@/lib/api-client"
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
 import { useSearchParams } from "next/navigation"
 
 // Dummy data (commented out, will be replaced by API calls)
@@ -37,13 +36,16 @@ const mockBusinesses = [
 
 export function BusinessesPage() {
   const searchParams = useSearchParams()
-  const urlSearch = searchParams.get("search") || ""
-
-  const [searchQuery, setSearchQuery] = useState(urlSearch)
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [selectedBusiness, setSelectedBusiness] = useState<any | null>(null)
   const [editBusiness, setEditBusiness] = useState<any | null>(null)
   const [deactivateBusiness, setDeactivateBusiness] = useState<any | null>(null)
+
+  useEffect(() => {
+    const q = searchParams.get("search")
+    if (q) setSearchQuery(q)
+  }, [searchParams])
 
   const { data: businessesData, isLoading } = useQuery({
     queryKey: ["businesses"],
@@ -55,6 +57,14 @@ export function BusinessesPage() {
     : Array.isArray(businessesData?.data?.businesses)
       ? businessesData.data.businesses
       : []
+
+  useEffect(() => {
+    const openId = searchParams.get("open")
+    if (openId && businesses.length > 0) {
+      const biz = businesses.find((b: any) => b._id === openId)
+      if (biz) setSelectedBusiness(biz)
+    }
+  }, [searchParams, businesses])
 
   const filteredBusinesses = businesses.filter(
     (business: any) =>
@@ -69,9 +79,86 @@ export function BusinessesPage() {
     queryFn: () => apiClient.getDashboardStats(),
   })
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center p-8">Loading businesses...</div>
-  }
+  const columns: DataTableColumn<any>[] = [
+    {
+      key: "name",
+      label: "Business",
+      sortable: true,
+      render: (business) => (
+        <div className="flex items-center gap-3">
+          <Avatar>
+            <AvatarFallback>{business.name?.substring(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-medium">{business.name}</p>
+            <p className="text-xs text-muted-foreground">Joined {new Date(business.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "numberOfSites",
+      label: "Sites",
+      sortable: true,
+      render: (business) => (
+        <div className="flex items-center gap-1">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <span>{business.numberOfSites}</span>
+        </div>
+      ),
+    },
+    {
+      key: "numberOfContracts",
+      label: "Contracts",
+      sortable: true,
+      render: (business) => (
+        <div className="flex items-center gap-1">
+          <Zap className="h-4 w-4 text-muted-foreground" />
+          <span>{business.numberOfContracts}</span>
+        </div>
+      ),
+    },
+    {
+      key: "_id",
+      label: "",
+      render: (business) => (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon">
+              <span className="sr-only">Actions</span>...
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedBusiness(business)
+              }}
+            >
+              View Details
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                setEditBusiness(business)
+              }}
+            >
+              Edit Business
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.stopPropagation()
+                setDeactivateBusiness(business)
+              }}
+              className="text-destructive"
+            >
+              Deactivate
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -107,134 +194,31 @@ export function BusinessesPage() {
             <p className="text-xs text-muted-foreground">Across all businesses</p>
           </CardContent>
         </Card>
-        {/* <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Contract Value</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$4.2M</div>
-            <p className="text-xs text-muted-foreground">Annual recurring revenue</p>
-          </CardContent>
-        </Card> */}
       </div>
 
       {/* Search and Filter */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search businesses by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Button variant="outline">
-              <Filter className="mr-2 h-4 w-4" />
-              Filter
-            </Button>
+          <div className="relative flex-1">
+            <Input
+              placeholder="Search businesses by name or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Business</TableHead>
-                {/* <TableHead>Contact</TableHead> */}
-                {/* <TableHead>Status</TableHead> */}
-                <TableHead>Sites</TableHead>
-                <TableHead>Contracts</TableHead>
-                {/* <TableHead>Total Value</TableHead> */}
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredBusinesses.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    No businesses found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredBusinesses.map((business: any) => (
-                  <TableRow key={business._id} className="cursor-pointer" onClick={() => setSelectedBusiness(business)}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarFallback>{business.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{business.name}</p>
-                          <p className="text-xs text-muted-foreground">Joined {new Date(business.createdAt).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    {/* <TableCell>
-                      <div>
-                        <p className="text-sm">{business.email}</p>
-                        <p className="text-xs text-muted-foreground">{business.phone}</p>
-                      </div>
-                    </TableCell> */}
-                    {/* <TableCell>
-                      <Badge variant={business.status === "Active" ? "default" : "secondary"}>{business.status}</Badge>
-                    </TableCell> */}
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{business.numberOfSites}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Zap className="h-4 w-4 text-muted-foreground" />
-                        <span>{business.numberOfContracts}</span>
-                      </div>
-                    </TableCell>
-                    {/* <TableCell className="font-medium">{business.totalValue}</TableCell> */}
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedBusiness(business)
-                            }}
-                          >
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setEditBusiness(business)
-                            }}
-                          >
-                            Edit Business
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={(e) => e.stopPropagation()}>View Contracts</DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setDeactivateBusiness(business)
-                            }}
-                            className="text-destructive"
-                          >
-                            Deactivate
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <DataTable
+            columns={columns}
+            data={filteredBusinesses}
+            isLoading={isLoading}
+            pageSize={15}
+            exportable
+            exportFilename="businesses"
+            emptyMessage="No businesses found"
+            rowKey={(b) => b._id}
+            onRowClick={(b) => setSelectedBusiness(b)}
+          />
         </CardContent>
       </Card>
 

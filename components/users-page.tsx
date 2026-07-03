@@ -1,18 +1,20 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useMemo } from "react"
+import { useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Mail, Phone, Building2 } from "lucide-react"
+import { Search, Plus } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AddUserDialog } from "./add-user-dialog"
 import { UserDetailsDialog } from "./user-details-dialog"
 import { apiClient } from "@/lib/api-client"
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
+import type { ReactNode } from "react"
 
 export interface User {
   _id: string
@@ -28,15 +30,22 @@ export interface User {
   numberOfBusinesses: number
   numberOfSites: number
   numberOfContracts: number
-  status?: string // Optional as it might not be in API yet
-  company?: string // Optional
+  status?: string
+  company?: string
+  emailVerified?: boolean
 }
 
 export function UsersPage() {
-  const [searchQuery, setSearchQuery] = useState("")
+  const searchParams = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
   const [statusFilter, setStatusFilter] = useState("all")
   const [addUserOpen, setAddUserOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
+
+  useEffect(() => {
+    const q = searchParams.get("search")
+    if (q) setSearchQuery(q)
+  }, [searchParams])
 
   const { data: response, isLoading } = useQuery({
     queryKey: ["users", searchQuery, statusFilter],
@@ -51,10 +60,17 @@ export function UsersPage() {
     const matchesSearch =
       user.fullname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    // user.company?.toLowerCase().includes(searchQuery.toLowerCase()) // Company might not exist
     const matchesStatus = statusFilter === "all" || (user.status || "Active") === statusFilter
     return matchesSearch && matchesStatus
   })
+
+  useEffect(() => {
+    const openId = searchParams.get("open")
+    if (openId && users.length > 0) {
+      const u = users.find((u: User) => u._id === openId)
+      if (u) setSelectedUser(u)
+    }
+  }, [searchParams, users])
 
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -69,7 +85,89 @@ export function UsersPage() {
     },
   })
 
-  console.log(stats, "stats users page")
+  const columns: DataTableColumn<User>[] = [
+    {
+      key: "fullname",
+      label: "User",
+      sortable: true,
+      render: (user) => (
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={user.profilePicture || "/placeholder.svg"} />
+            <AvatarFallback>
+              {user.fullname
+                ?.split(" ")
+                .map((n) => n[0])
+                .join("") || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="font-medium">{user.fullname}</p>
+            <p className="text-xs text-muted-foreground">
+              Joined {new Date(user.createdAt).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "email",
+      label: "Email",
+      sortable: true,
+      render: (user) => <span className="text-sm">{user.email}</span>,
+    },
+    {
+      key: "role",
+      label: "Role",
+      sortable: true,
+      render: (user) => <span className="capitalize">{user.role}</span>,
+    },
+    {
+      key: "numberOfBusinesses",
+      label: "Biz",
+      sortable: true,
+      className: "text-center",
+    },
+    {
+      key: "numberOfSites",
+      label: "Sites",
+      sortable: true,
+      className: "text-center",
+    },
+    {
+      key: "numberOfContracts",
+      label: "Contracts",
+      sortable: true,
+      className: "text-center",
+    },
+    {
+      key: "status",
+      label: "Status",
+      sortable: true,
+      render: (user) => (
+        <Badge variant={(user.status || "Active") === "Active" ? "default" : "secondary"}>
+          {user.status || "Active"}
+        </Badge>
+      ),
+    },
+    {
+      key: "_id",
+      label: "",
+      render: (user) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation()
+            setSelectedUser(user)
+          }}
+          className="text-right"
+        >
+          View
+        </Button>
+      ),
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -152,87 +250,17 @@ export function UsersPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">Loading users...</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Contact</TableHead>
-                  {/* <TableHead>Company</TableHead> */}
-                  <TableHead>Role</TableHead>
-                  <TableHead>Businesses</TableHead>
-                  <TableHead>Sites</TableHead>
-                  <TableHead>Contracts</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user._id} className="cursor-pointer" onClick={() => setSelectedUser(user)}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.profilePicture || "/placeholder.svg"} />
-                          <AvatarFallback>
-                            {user.fullname
-                              ?.split(" ")
-                              .map((n) => n[0])
-                              .join("") || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.fullname}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Joined {new Date(user.createdAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          {user.email}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          {user.phoneNumber || "N/A"}
-                        </div>
-                      </div>
-                    </TableCell>
-                    {/* <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 text-muted-foreground" />
-                        {user.company || "N/A"}
-                      </div>
-                    </TableCell> */}
-                    <TableCell className="capitalize">{user.role}</TableCell>
-                    <TableCell className="text-center font-medium">{user.numberOfBusinesses || 0}</TableCell>
-                    <TableCell className="text-center font-medium">{user.numberOfSites || 0}</TableCell>
-                    <TableCell className="text-center font-medium">{user.numberOfContracts || 0}</TableCell>
-                    <TableCell>
-                      <Badge variant={(user.status || "Active") === "Active" ? "default" : "secondary"}>{user.status || "Active"}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedUser(user)
-                        }}
-                      >
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          <DataTable
+            columns={columns}
+            data={filteredUsers}
+            isLoading={isLoading}
+            pageSize={15}
+            exportable
+            exportFilename="users"
+            emptyMessage="No users found"
+            rowKey={(u) => u._id}
+            onRowClick={(u) => setSelectedUser(u)}
+          />
         </CardContent>
       </Card>
 

@@ -61,32 +61,39 @@ const mockContracts = [
 export function BusinessDetailsDialog({ business, open, onOpenChange }: BusinessDetailsDialogProps) {
   const [editMode, setEditMode] = useState(false)
 
+  const businessId = business?._id || business?.id
+
   const { data: businessDetails, isLoading } = useQuery({
-    queryKey: ["business", business?.id],
-    queryFn: () => apiClient.getBusiness(business.id),
-    enabled: !!business && open,
-    placeholderData: business,
+    queryKey: ["business", businessId],
+    queryFn: () => apiClient.getBusiness(businessId),
+    enabled: !!businessId && open,
   })
 
-  const { data: sites = [], isLoading: sitesLoading } = useQuery({
-    queryKey: ["business-sites", business?.id],
-    queryFn: () => apiClient.getBusinessSites(business.id),
-    enabled: !!business && open,
-    // Uncomment mock data for development
-    // placeholderData: mockSites,
-  })
-
-  const { data: contracts = [], isLoading: contractsLoading } = useQuery({
-    queryKey: ["business-contracts", business?.id],
-    queryFn: () => apiClient.getBusinessContracts(business.id),
-    enabled: !!business && open,
-    // Uncomment mock data for development
-    // placeholderData: mockContracts,
+  const { data: contractsResponse, isLoading: contractsLoading } = useQuery({
+    queryKey: ["all-contracts"],
+    queryFn: () => apiClient.getContracts(),
+    enabled: open,
   })
 
   if (!business) return null
 
-  const displayBusiness = businessDetails || business
+  const displayBusiness = businessDetails?.data?.business || businessDetails?.data || business
+
+  const extractList = (res: any, key: string) =>
+    Array.isArray(res?.data) ? res.data
+    : Array.isArray(res?.data?.[key]) ? res.data[key]
+    : Array.isArray(res) ? res
+    : Array.isArray(res?.[key]) ? res[key]
+    : []
+
+  const sites = Array.isArray(displayBusiness.sites) ? displayBusiness.sites : []
+
+  const allContracts = extractList(contractsResponse, "utilities")
+  const bizUtilityIds = new Set(displayBusiness.utilities || [])
+  const siteUtilityIds = new Set(sites.flatMap((s: any) => s.utilities || []))
+  const contracts = allContracts.filter(
+    (c: any) => bizUtilityIds.has(c._id) || siteUtilityIds.has(c._id),
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -98,7 +105,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
             </Avatar>
             <div className="flex-1">
               <DialogTitle className="text-2xl">{displayBusiness.name}</DialogTitle>
-              <DialogDescription className="mt-1">Business since {displayBusiness.joinedDate}</DialogDescription>
+              <DialogDescription className="mt-1">Business since {displayBusiness.joinedDate || new Date(displayBusiness.createdAt).toLocaleDateString()}</DialogDescription>
             </div>
             {/* <Badge variant={displayBusiness.status === "Active" ? "default" : "secondary"}>
               {displayBusiness.status}
@@ -127,15 +134,15 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                 <CardContent className="space-y-3">
                   <div className="flex items-center gap-3">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{displayBusiness.email}</span>
+                    <span className="text-sm">{displayBusiness.email || displayBusiness.contactEmail || "N/A"}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{displayBusiness.phone}</span>
+                    <span className="text-sm">{displayBusiness.phone || displayBusiness.contactPhone || "N/A"}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Joined on {displayBusiness.joinedDate}</span>
+                    <span className="text-sm">Joined on {displayBusiness.joinedDate || new Date(displayBusiness.createdAt).toLocaleDateString()}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -149,7 +156,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                   <CardContent>
                     <div className="flex items-center gap-2">
                       <MapPin className="h-5 w-5 text-primary" />
-                      <span className="text-2xl font-bold">{displayBusiness.sites}</span>
+                      <span className="text-2xl font-bold">{sites.length}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -160,7 +167,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                   <CardContent>
                     <div className="flex items-center gap-2">
                       <Zap className="h-5 w-5 text-primary" />
-                      <span className="text-2xl font-bold">{displayBusiness.contracts}</span>
+                      <span className="text-2xl font-bold">{contracts.length}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -189,14 +196,12 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {sitesLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
+                  {sites.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No sites found</p>
                   ) : (
                     <div className="space-y-3">
                       {sites.map((site: any) => (
-                        <div key={site.id} className="flex items-center justify-between rounded-lg border p-4">
+                        <div key={site._id || site.id} className="flex items-center justify-between rounded-lg border p-4">
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                               <Building2 className="h-5 w-5 text-primary" />
@@ -207,8 +212,8 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                             </div>
                           </div>
                           <div className="text-right">
-                            <Badge variant="outline">{site.contracts} contracts</Badge>
-                            <p className="mt-1 text-xs text-muted-foreground">{site.status}</p>
+                            <Badge variant="outline">{(site.contracts?.length ?? site.contracts ?? 0)} contracts</Badge>
+                            <p className="mt-1 text-xs text-muted-foreground">{site.status || "Active"}</p>
                           </div>
                         </div>
                       ))}
@@ -236,6 +241,8 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
+                  ) : contracts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No contracts found</p>
                   ) : (
                     <Table>
                       <TableHeader>
@@ -250,18 +257,18 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                       </TableHeader>
                       <TableBody>
                         {contracts.map((contract: any) => (
-                          <TableRow key={contract.id}>
-                            <TableCell className="font-medium">{contract.site}</TableCell>
+                          <TableRow key={contract._id || contract.id}>
+                            <TableCell className="font-medium">{contract.site?.name || contract.site || "N/A"}</TableCell>
                             <TableCell>
-                              <Badge variant="outline">{contract.type}</Badge>
+                              <Badge variant="outline">{contract.type || "N/A"}</Badge>
                             </TableCell>
-                            <TableCell>{contract.provider}</TableCell>
+                            <TableCell>{contract.supplier || contract.provider || "N/A"}</TableCell>
                             <TableCell className="text-sm">
-                              {contract.startDate} to {contract.endDate}
+                              {contract.contractStart || contract.startDate || "N/A"} to {contract.contractEnd || contract.endDate || "N/A"}
                             </TableCell>
                             {/* <TableCell className="font-medium">{contract.value}</TableCell> */}
                             <TableCell>
-                              <Badge variant="default">{contract.status}</Badge>
+                              <Badge variant={(contract.status === "Active" || contract.status === "active") ? "default" : "secondary"}>{contract.status || "Unknown"}</Badge>
                             </TableCell>
                           </TableRow>
                         ))}

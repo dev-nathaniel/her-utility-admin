@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,7 +22,7 @@ import {
   Building2,
 } from "lucide-react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -37,10 +37,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useSearch } from "@/lib/search-provider"
 import { useAuth } from "@/lib/auth-context"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
+import { useWebSocket } from "@/lib/websocket-provider"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 type navigationType = {
   name: string
@@ -57,9 +58,9 @@ const navigation: navigationType[] = [
   { name: "Email Management", href: "/dashboard/emails", icon: Mail },
   { name: "Content Management", href: "/dashboard/content", icon: Newspaper },
   { name: "Support", href: "/dashboard/support", icon: HeadphonesIcon},
-  { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap }, // Critical count will be dynamic
+  { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap },
   { name: "Admins", href: "/dashboard/admins", icon: UserCog },
-  // { name: "Coming Soon", href: "/dashboard/coming-soon", icon: Rocket },
+  { name: "Activity Log", href: "/dashboard/activity-log", icon: Rocket },
 ]
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -67,13 +68,40 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const { logout, user } = useAuth()
   const pathname = usePathname()
-  const { searchQuery, setSearchQuery, performSearch } = useSearch()
+  const router = useRouter()
   const [localSearchQuery, setLocalSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<{ users: any[]; businesses: any[] }>({ users: [], businesses: [] })
+  const [searchOpen, setSearchOpen] = useState(false)
+  const { isConnected } = useWebSocket()
+  const queryClient = useQueryClient()
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  const { data: allUsersData } = useQuery({
+    queryKey: ["global-search-users"],
+    queryFn: () => apiClient.getUsers(),
+    staleTime: 60000,
+  })
+
+  const { data: allBizData } = useQuery({
+    queryKey: ["global-search-businesses"],
+    queryFn: () => apiClient.getBusinesses(),
+    staleTime: 60000,
+  })
+
+  const { data: notificationData } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => apiClient.getNotifications(),
+    refetchInterval: 30000,
+  })
+
+  const markAllReadMutation = useMutation({
+    mutationFn: () => apiClient.markAllNotificationsRead(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  })
 
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: apiClient.getDashboardStats,
-    // refresh every minute
     refetchInterval: 60000,
   })
 
@@ -92,58 +120,61 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     return item
   })
 
-  console.log("Navigation items:", navigationItems);
-
   const handleLogout = async () => {
     await logout()
   }
 
-  const notifications = [
-    {
-      id: 1,
-      title: "New Quote Request",
-      message: "ABC Corp requested a quote for 3 sites",
-      time: "5m ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      title: "Support Ticket Updated",
-      message: "Ticket #1234 has been updated by John Doe",
-      time: "1h ago",
-      unread: true,
-    },
-    {
-      id: 3,
-      title: "Contract Expiring Soon",
-      message: "Gas contract for XYZ Ltd expires in 30 days",
-      time: "2h ago",
-      unread: false,
-    },
-    {
-      id: 4,
-      title: "New Customer Onboarded",
-      message: "TechStart Inc has been successfully added",
-      time: "1d ago",
-      unread: false,
-    },
-    {
-      id: 5,
-      title: "Email Campaign Sent",
-      message: "Monthly newsletter sent to 1,234 customers",
-      time: "2d ago",
-      unread: false,
-    },
-  ]
+  const notifications: any[] = Array.isArray(notificationData?.data) ? notificationData.data : []
+  const unreadCount = notifications.filter((n: any) => n.unread).length
 
-  const unreadCount = notifications.filter((n) => n.unread).length
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (localSearchQuery.trim()) {
-      performSearch(localSearchQuery)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false)
+      }
     }
-  }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  useEffect(() => {
+    const trimmed = localSearchQuery.trim().toLowerCase()
+    if (!trimmed) {
+      setSearchResults({ users: [], businesses: [] })
+      setSearchOpen(false)
+      return
+    }
+
+    const allUsers = Array.isArray(allUsersData?.data) ? allUsersData.data : (allUsersData?.data?.users || [])
+    const allBiz = Array.isArray(allBizData?.data) ? allBizData.data : (allBizData?.data?.businesses || [])
+
+    const filteredUsers = allUsers.filter(
+      (u: any) =>
+        (u.fullname || "").toLowerCase().includes(trimmed) ||
+        (u.email || "").toLowerCase().includes(trimmed),
+    )
+    const filteredBiz = allBiz.filter(
+      (b: any) =>
+        (b.name || "").toLowerCase().includes(trimmed) ||
+        (b.address || "").toLowerCase().includes(trimmed),
+    )
+
+    setSearchResults({ users: filteredUsers, businesses: filteredBiz })
+    setSearchOpen(true)
+  }, [localSearchQuery, allUsersData, allBizData])
+
+  const totalResults = searchResults.users.length + searchResults.businesses.length
+
+  const handleSelectResult = useCallback(
+    (type: "user" | "business", id: string) => {
+      setSearchOpen(false)
+      setLocalSearchQuery("")
+      setSearchResults({ users: [], businesses: [] })
+      const base = type === "user" ? "/dashboard/users" : "/dashboard/businesses"
+      router.push(`${base}?open=${id}`)
+    },
+    [router],
+  )
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -229,15 +260,67 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
               <Menu className="h-5 w-5" />
             </Button>
-            <form onSubmit={handleSearch} className="relative w-96 max-w-full">
+            <div ref={searchRef} className="relative w-96 max-w-full">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search users, businesses, quotes, tickets..."
+                placeholder="Search users, businesses..."
                 className="pl-9"
                 value={localSearchQuery}
                 onChange={(e) => setLocalSearchQuery(e.target.value)}
+                onFocus={() => { if (localSearchQuery.trim() && totalResults > 0) setSearchOpen(true) }}
+                onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false) }}
               />
-            </form>
+              {searchOpen && (
+                <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-lg border bg-popover p-1 shadow-md">
+                  {totalResults === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No results found</p>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto">
+                      {searchResults.users.length > 0 && (
+                        <div>
+                          <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Users</p>
+                          {searchResults.users.map((u: any) => (
+                            <button
+                              key={u._id}
+                              className="flex w-full items-center gap-3 rounded-sm px-2 py-2 text-sm hover:bg-accent"
+                              onClick={() => handleSelectResult("user", u._id)}
+                            >
+                              <Avatar className="h-7 w-7">
+                                <AvatarFallback className="text-xs">{(u.fullname || u.email || "?").substring(0, 2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div className="flex-1 text-left">
+                                <p className="font-medium">{u.fullname || "Unknown"}</p>
+                                <p className="text-xs text-muted-foreground">{u.email}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {searchResults.businesses.length > 0 && (
+                        <div>
+                          <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Businesses</p>
+                          {searchResults.businesses.map((b: any) => (
+                            <button
+                              key={b._id}
+                              className="flex w-full items-center gap-3 rounded-sm px-2 py-2 text-sm hover:bg-accent"
+                              onClick={() => handleSelectResult("business", b._id)}
+                            >
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
+                                <Building2 className="h-3.5 w-3.5 text-primary" />
+                              </div>
+                              <div className="flex-1 text-left">
+                                <p className="font-medium">{b.name}</p>
+                                <p className="text-xs text-muted-foreground">{b.address || ""}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
@@ -258,32 +341,41 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     variant="ghost"
                     size="sm"
                     className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => markAllReadMutation.mutate()}
+                    disabled={markAllReadMutation.isPending}
                   >
                     Mark all as read
                   </Button>
                 </div>
                 <ScrollArea className="h-96">
                   <div className="divide-y">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={cn(
-                          "p-4 hover:bg-muted/50 cursor-pointer transition-colors",
-                          notification.unread && "bg-muted/30",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium">{notification.title}</p>
-                              {notification.unread && <span className="h-2 w-2 rounded-full bg-accent" />}
+                    {notifications.map((notification: any) => {
+                      const nid = notification._id || notification.id
+                      const title = notification.title || notification.type || "Notification"
+                      const message = notification.message || notification.details || ""
+                      const isUnread = notification.unread || !notification.read
+                      const time = notification.time || notification.createdAt
+                      return (
+                        <div
+                          key={nid}
+                          className={cn(
+                            "p-4 hover:bg-muted/50 cursor-pointer transition-colors",
+                            isUnread && "bg-muted/30",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium">{title}</p>
+                                {isUnread && <span className="h-2 w-2 rounded-full bg-accent" />}
+                              </div>
+                              <p className="mt-1 text-xs text-muted-foreground">{message}</p>
                             </div>
-                            <p className="mt-1 text-xs text-muted-foreground">{notification.message}</p>
                           </div>
+                          <p className="mt-2 text-xs text-muted-foreground">{time}</p>
                         </div>
-                        <p className="mt-2 text-xs text-muted-foreground">{notification.time}</p>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </ScrollArea>
                 <div className="border-t p-2">
@@ -325,7 +417,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-6">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
     </div>
   )
