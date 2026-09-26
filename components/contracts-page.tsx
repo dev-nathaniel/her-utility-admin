@@ -1,574 +1,290 @@
 "use client"
 
-import { DialogDescription } from "@/components/ui/dialog"
-
-import { DialogTitle } from "@/components/ui/dialog"
-
-import { DialogHeader } from "@/components/ui/dialog"
-
-import { DialogContent } from "@/components/ui/dialog"
-
-import { Dialog } from "@/components/ui/dialog"
-
-import { TableCell } from "@/components/ui/table"
-
-import { TableBody } from "@/components/ui/table"
-
-import { TableHead } from "@/components/ui/table"
-
-import { TableRow } from "@/components/ui/table"
-
-import { TableHeader } from "@/components/ui/table"
-
-import { Table } from "@/components/ui/table"
-
-import { SelectItem } from "@/components/ui/select"
-
-import { SelectContent } from "@/components/ui/select"
-
-import { SelectValue } from "@/components/ui/select"
-
-import { SelectTrigger } from "@/components/ui/select"
-
-import { Select } from "@/components/ui/select"
-
-import { TabsContent } from "@/components/ui/tabs"
-
-import { TabsTrigger } from "@/components/ui/tabs"
-
-import { TabsList } from "@/components/ui/tabs"
-
-import { Tabs } from "@/components/ui/tabs"
-
 import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, MapPin, Zap, Building2, Calendar, AlertTriangle, AlertCircle, Clock, FileText } from "lucide-react"
+import { Search, Zap, Flame, Droplets, PhoneCall, AlertTriangle, Clock, Eye, Filter } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ContractDetailsDialog } from "./contract-details-dialog"
-import { SiteDetailsDialog } from "./site-details-dialog"
-import { apiClient } from "@/lib/api-client"
-import { useRouter, useSearchParams } from "next/navigation"
-
-// Mock data preserved for reference but disabled
-// const mockContracts = [
-//   { ... }
-// ]
-
-const mockSites = [
-  {
-    id: 1,
-    name: "Main Office - New York",
-    customer: "Acme Corporation",
-    address: "123 Main St, New York, NY 10001",
-    type: "Office",
-    size: "25,000 sq ft",
-    contracts: 3,
-    totalValue: "$85,000",
-    status: "Active",
-  },
-  {
-    id: 2,
-    name: "Warehouse A - Newark",
-    customer: "Global Industries Ltd",
-    address: "456 Industrial Blvd, Newark, NJ 07102",
-    type: "Warehouse",
-    size: "50,000 sq ft",
-    contracts: 2,
-    totalValue: "$72,000",
-    status: "Active",
-  },
-  {
-    id: 3,
-    name: "Store #1 - Brooklyn",
-    customer: "Retail Plus Inc",
-    address: "789 Shopping Center, Brooklyn, NY 11201",
-    type: "Retail",
-    size: "8,000 sq ft",
-    contracts: 1,
-    totalValue: "$32,000",
-    status: "Active",
-  },
-]
+import { apiClient, type ContractData } from "@/lib/api-client"
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
+import { useSearchParams } from "next/navigation"
 
 export function ContractsPage() {
-  const router = useRouter()
   const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [typeFilter, setTypeFilter] = useState("all")
-  const [selectedContract, setSelectedContract] = useState<any>(null)
-  const [selectedSite, setSelectedSite] = useState<any>(null)
-  const [addContractOpen, setAddContractOpen] = useState(false)
-  const [addSiteOpen, setAddSiteOpen] = useState(false)
+  const [utilityFilter, setUtilityFilter] = useState("all")
+  const [urgencyFilter, setUrgencyFilter] = useState("all")
+  const [selectedContract, setSelectedContract] = useState<any | null>(null)
 
   useEffect(() => {
     const q = searchParams.get("search")
     if (q) setSearchQuery(q)
   }, [searchParams])
 
-  const { data: contractsResponse, isLoading: contractsLoading, error } = useQuery({
-    queryKey: ["contracts", searchQuery, statusFilter, typeFilter],
-    queryFn: async () => {
-      // Fetch utilities from server (now correctly mapped to /utilities endpoint)
-      console.log("Fetching contracts...");
-      const response = await apiClient.getContracts({
-        search: searchQuery,
-        status: statusFilter !== "all" ? statusFilter.toLowerCase() : undefined,
-      })
-      console.log("Fetched contracts response:", response);
-      return response
-    },
+  const { data: contracts = [], isLoading } = useQuery({
+    queryKey: ["contracts"],
+    queryFn: () => apiClient.getContracts(),
+    refetchInterval: 30000,
   })
 
-  const { data: statsData } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: apiClient.getDashboardStats,
-  })
-  
-  const overview = (statsData as any)?.overview || {}
+  const getUtilityIcon = (type: string) => {
+    switch (type?.toLowerCase()) {
+      case "electricity":
+        return <Zap className="h-4 w-4 text-amber-500" />
+      case "gas":
+        return <Flame className="h-4 w-4 text-orange-500" />
+      case "water":
+        return <Droplets className="h-4 w-4 text-blue-500" />
+      case "telecoms":
+      case "broadband":
+        return <PhoneCall className="h-4 w-4 text-purple-500" />
+      default:
+        return <Zap className="h-4 w-4 text-purple-600" />
+    }
+  }
 
-  // Real stats from API
-  const stats = [
+  const getUrgencyBadge = (level: string) => {
+    switch (level?.toLowerCase()) {
+      case "critical":
+        return <Badge variant="destructive" className="text-xs font-semibold">Critical (&lt;30d)</Badge>
+      case "high":
+        return <Badge className="bg-amber-500 text-white text-xs font-semibold">High (&lt;60d)</Badge>
+      case "medium":
+        return <Badge className="bg-yellow-500 text-white text-xs font-semibold">Medium (&lt;90d)</Badge>
+      case "renewable":
+        return <Badge className="bg-blue-500 text-white text-xs font-semibold">Renewable Now</Badge>
+      case "expired":
+        return <Badge variant="destructive" className="text-xs font-semibold">Expired</Badge>
+      default:
+        return <Badge variant="secondary" className="text-xs font-semibold">Normal</Badge>
+    }
+  }
+
+  const filteredContracts = contracts.filter((c: any) => {
+    const q = searchQuery.toLowerCase()
+    const matchesQuery =
+      (c.supplier_name || "").toLowerCase().includes(q) ||
+      (c.meter_number || "").toLowerCase().includes(q) ||
+      (c.account_number || "").toLowerCase().includes(q) ||
+      (c.customer || c.user_company || "").toLowerCase().includes(q) ||
+      (c.property_address || c.site || "").toLowerCase().includes(q)
+
+    const matchesUtility =
+      utilityFilter === "all" || (c.utility_type || "").toLowerCase() === utilityFilter.toLowerCase()
+
+    const matchesUrgency =
+      urgencyFilter === "all" || (c.urgency_level || "").toLowerCase() === urgencyFilter.toLowerCase()
+
+    return matchesQuery && matchesUtility && matchesUrgency
+  })
+
+  const columns: DataTableColumn<any>[] = [
     {
-      title: "Total Contracts",
-      value: overview.contractsCount || 0,
-      description: "Active utility agreements",
-      icon: FileText,
+      key: "utility_type",
+      label: "Utility & Supplier",
+      sortable: true,
+      render: (c) => (
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-muted/60 flex-shrink-0">
+            {getUtilityIcon(c.utility_type)}
+          </div>
+          <div>
+            <p className="font-semibold text-sm leading-tight">{c.supplier_name || "Unknown Supplier"}</p>
+            <p className="text-xs text-muted-foreground capitalize">
+              {c.utility_type || "Electricity"} &bull; <span className="font-mono">{c.meter_number || c.contractNumber}</span>
+            </p>
+          </div>
+        </div>
+      ),
     },
     {
-      title: "Active Contracts",
-      value: overview.activeUtilitiesCount || 0,
-      description: "Currently in service",
-      icon: Zap,
+      key: "customer",
+      label: "Client & Location",
+      sortable: true,
+      render: (c) => (
+        <div>
+          <p className="font-medium text-sm text-foreground">{c.user_company || c.customer}</p>
+          <p className="text-xs text-muted-foreground truncate max-w-xs">{c.property_address || c.site}</p>
+        </div>
+      ),
     },
     {
-      title: "Pending Contracts",
-      value: overview.pendingUtilitiesCount || 0,
-      description: "Awaiting approval",
-      icon: AlertCircle,
+      key: "end_date",
+      label: "Expiry & Countdown",
+      sortable: true,
+      render: (c) => (
+        <div>
+          <p className="text-sm font-semibold">
+            {c.end_date || c.contract_end_date ? new Date(c.end_date || c.contract_end_date).toLocaleDateString() : "—"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {c.days_until_expiry != null
+              ? c.days_until_expiry < 0
+                ? `${Math.abs(c.days_until_expiry)}d ago`
+                : `${c.days_until_expiry}d left`
+              : "No date set"}
+          </p>
+        </div>
+      ),
     },
     {
-      title: "Expiring Soon",
-      value: overview.expiringUtilitiesCount || 0,
-      description: "Within next 30 days",
-      icon: Clock,
+      key: "urgency_level",
+      label: "Urgency",
+      sortable: true,
+      render: (c) => getUrgencyBadge(c.urgency_level),
+    },
+    {
+      key: "unit_rate",
+      label: "Tariff Rates",
+      render: (c) => (
+        <div className="text-xs">
+          <p className="font-medium">{c.unit_rate ? `${c.unit_rate} p/kWh` : "—"}</p>
+          <p className="text-muted-foreground">{c.standing_charge ? `${c.standing_charge} p/day` : "—"}</p>
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      render: (c) => (
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 h-8 text-xs"
+          onClick={() => setSelectedContract(c)}
+        >
+          <Eye className="h-3.5 w-3.5" />
+          <span>Details</span>
+        </Button>
+      ),
     },
   ]
 
-  // Map Server Response to UI Contract Shape
-  // The server response is now { success: true, message: "...", data: { utilities: [...] } }
-  const contracts =
-    ((contractsResponse?.data as any)?.utilities || [])?.map((util: any) => ({
-      id: util._id,
-      contractNumber: util.identifier || util.previousMeterId || "PENDING",
-      customer: util.business?.name || "Unknown Business",
-      site: util.site?.name || "Unknown Site",
-      type: util.type ? util.type.charAt(0).toUpperCase() + util.type.slice(1) : "Unknown",
-      provider: util.supplier || util.previousSupplier || "Pending",
-      startDate: util.contractStart || "", // Handle missing dates gracefully
-      endDate: util.contractEnd || util.previousContractExpiry || "",
-      annualValue: "—", // Not yet in backend model
-      status:
-        util.status === "pending"
-          ? "Pending"
-          : util.status === "expired"
-          ? "Expired"
-          : util.status === "active"
-          ? "Active"
-          : "Unknown",
-      usage: "—", // Not yet in backend model
-      original: util, // Keep original data for reference if needed
-    })) || []
-  
-  if (error) console.error("Error fetching contracts:", error);
-  console.log("Mapped contracts:", contracts);
-
-
-  const { data: sites = mockSites, isLoading: sitesLoading } = useQuery({
-    queryKey: ["sites", searchQuery],
-    queryFn: () => {
-      // const response = await apiClient.getSites({ search: searchQuery })
-      // return response.data
-      return mockSites // Using mock data for now
-    },
-  })
-
-  const filteredContracts = contracts.filter((contract: any) => {
-    const matchesSearch =
-      contract.customer.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contract.site.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contract.contractNumber.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || contract.status.toLowerCase() === statusFilter.toLowerCase()
-    const matchesType = typeFilter === "all" || contract.type === typeFilter
-    return matchesSearch && matchesStatus && matchesType
-  })
-
-
-
-  const filteredSites = sites.filter(
-    (site) =>
-      site.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      site.customer.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
-
-  const today = new Date()
-  const criticalContracts = contracts.filter((contract: any) => {
-    const endDate = new Date(contract.endDate)
-    const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    return daysUntilExpiry > 0 && daysUntilExpiry <= 7
-  })
-
-  const urgentContracts = contracts.filter((contract: any) => {
-    const endDate = new Date(contract.endDate)
-    const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    return daysUntilExpiry > 7 && daysUntilExpiry <= 30
-  })
-
-  const warningContracts = contracts.filter((contract: any) => {
-    const endDate = new Date(contract.endDate)
-    const daysUntilExpiry = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    return daysUntilExpiry > 30 && daysUntilExpiry <= 60
-  })
+  const totalContracts = contracts.length
+  const criticalCount = contracts.filter((c: any) => c.urgency_level === "critical").length
+  const highCount = contracts.filter((c: any) => c.urgency_level === "high").length
+  const renewableCount = contracts.filter((c: any) => c.urgency_level === "renewable" || c.renewable_now).length
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Utility Contracts</h1>
-          <p className="text-muted-foreground">Manage utility contracts and customer locations</p>
-        </div>
-        <div className="flex gap-2">
-          {/* <Button variant="outline" onClick={() => setAddSiteOpen(true)}>
-            <MapPin className="mr-2 h-4 w-4" />
-            Add Site
-          </Button> */}
-          <Button onClick={() => setAddContractOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Contract
-          </Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Utility Contracts</h1>
+        <p className="text-muted-foreground mt-0.5">
+          Live electricity, gas, water, and telecoms agreements across all client sites.
+        </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Active Contracts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{overview.activeUtilitiesCount || 0}</div>
-            <p className="text-xs text-muted-foreground">Across all customers</p>
-          </CardContent>
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Card className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Total Agreements</p>
+            <p className="text-2xl font-bold mt-1">{totalContracts}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+            <Zap className="h-5 w-5" />
+          </div>
         </Card>
-        <Card className="border-destructive/50 bg-destructive/5">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Critical (≤7 days)</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{criticalContracts.length}</div>
-            <p className="text-xs text-muted-foreground">Require immediate action</p>
-          </CardContent>
+
+        <Card className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Critical (&lt;30 days)</p>
+            <p className="text-2xl font-bold text-red-600 mt-1">{criticalCount}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
         </Card>
-        <Card className="border-orange-500/50 bg-orange-50 dark:bg-orange-950/20">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Urgent (≤30 days)</CardTitle>
-              <AlertCircle className="h-4 w-4 text-orange-500" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-500">{urgentContracts.length}</div>
-            <p className="text-xs text-muted-foreground">Within 30 days</p>
-          </CardContent>
+
+        <Card className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Notice Open (&lt;60 days)</p>
+            <p className="text-2xl font-bold text-amber-600 mt-1">{highCount}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+            <Clock className="h-5 w-5" />
+          </div>
         </Card>
-        <Card className="border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium">Warning (≤60 days)</CardTitle>
-              <Clock className="h-4 w-4 text-yellow-600" />
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-500">{warningContracts.length}</div>
-            <p className="text-xs text-muted-foreground">Within 60 days</p>
-          </CardContent>
+
+        <Card className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Renewable Window</p>
+            <p className="text-2xl font-bold text-blue-600 mt-1">{renewableCount}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+            <Zap className="h-5 w-5" />
+          </div>
         </Card>
       </div>
 
-      {/* Main Content */}
-      <Tabs defaultValue="contracts" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="contracts">
-            Contracts
-            {criticalContracts.length > 0 && (
-              <Badge className="ml-2 h-5 min-w-5 rounded-full px-1.5 text-xs bg-destructive text-destructive-foreground">
-                {criticalContracts.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          {/* <TabsTrigger value="sites">Sites</TabsTrigger> */}
-        </TabsList>
+      {/* Filters Bar */}
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search supplier, meter, company..."
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
 
-        <TabsContent value="contracts">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search contracts by customer, site, or number..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-full sm:w-40">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-full sm:w-40">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="Electricity">Electricity</SelectItem>
-                    <SelectItem value="Gas">Gas</SelectItem>
-                    <SelectItem value="Water">Water</SelectItem>
-                    <SelectItem value="Telecoms">Telecoms</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {contractsLoading ? (
-                <div className="py-8 text-center text-muted-foreground">Loading contracts...</div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Contract #</TableHead>
-                      <TableHead>Customer</TableHead>
-                      <TableHead>Site</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Term</TableHead>
-                      <TableHead>Value</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredContracts.map((contract: any) => (
-                      <TableRow
-                        key={contract.id}
-                        className="cursor-pointer"
-                        onClick={() => setSelectedContract(contract)}
-                      >
-                        <TableCell className="font-medium">{contract.contractNumber}</TableCell>
-                        <TableCell>{contract.customer}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {/* <MapPin className="h-4 w-4 text-muted-foreground" /> */}
-                            <span className="text-sm">{contract.site}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {/* <Zap className="h-4 w-4 text-primary" /> */}
-                            <Badge variant="outline">{contract.type}</Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>{contract.provider}</TableCell>
-                        <TableCell className="text-sm">
-                          <div className="flex items-center gap-1">
-                            {/* <Calendar className="h-3 w-3 text-muted-foreground" /> */}
-                            {contract.startDate ? new Date(contract.startDate).toLocaleDateString() : ""}
-                            {contract.startDate && contract.endDate ? " - " : ""}
-                            {contract.endDate ? new Date(contract.endDate).toLocaleDateString() : ""}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{contract.annualValue}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              contract.status === "Active"
-                                ? "default"
-                                : contract.status === "Expiring Soon"
-                                  ? "destructive"
-                                  : contract.status === "Pending"
-                                  ? "secondary" // Orange/Yellow distinct style needs custom CSS possibly, sticking to secondary for now
-                                  : "secondary"
-                            }
-                          >
-                            {contract.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedContract(contract)
-                            }}
-                          >
-                            View
-                          </Button>
-                          {contract.status === "Pending" && (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              className="ml-2"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                // Navigate to quotes page with create action
-                                router.push(`/dashboard/quotes?action=create&utilityId=${contract.id}`)
-                              }}
-                            >
-                              Create Quote
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <Select value={utilityFilter} onValueChange={setUtilityFilter}>
+            <SelectTrigger className="w-36 h-9 text-xs">
+              <SelectValue placeholder="Utility Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Utilities</SelectItem>
+              <SelectItem value="electricity">Electricity</SelectItem>
+              <SelectItem value="gas">Gas</SelectItem>
+              <SelectItem value="water">Water</SelectItem>
+              <SelectItem value="telecoms">Telecoms</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <TabsContent value="sites">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Customer Sites</CardTitle>
-                  <CardDescription>All customer locations and facilities</CardDescription>
-                </div>
-                <div className="relative w-72">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Search sites..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {sitesLoading ? (
-                <div className="py-8 text-center text-muted-foreground">Loading sites...</div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {filteredSites.map((site) => (
-                    <Card
-                      key={site.id}
-                      className="cursor-pointer transition-colors hover:bg-accent"
-                      onClick={() => setSelectedSite(site)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                              <Building2 className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <CardTitle className="text-base">{site.name}</CardTitle>
-                              <CardDescription>{site.customer}</CardDescription>
-                            </div>
-                          </div>
-                          <Badge>{site.status}</Badge>
-                        </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="h-4 w-4" />
-                          {site.address}
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Type: {site.type}</span>
-                          <span className="text-muted-foreground">{site.size}</span>
-                        </div>
-                        <div className="flex items-center justify-between border-t pt-3">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Contracts</p>
-                            <p className="text-lg font-bold">{site.contracts}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-xs text-muted-foreground">Total Value</p>
-                            <p className="text-lg font-bold">{site.totalValue}</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
+            <SelectTrigger className="w-36 h-9 text-xs">
+              <SelectValue placeholder="Urgency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Urgencies</SelectItem>
+              <SelectItem value="critical">Critical (&lt;30d)</SelectItem>
+              <SelectItem value="high">High (&lt;60d)</SelectItem>
+              <SelectItem value="renewable">Renewable</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="expired">Expired</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
 
-      {/* Dialogs */}
-      <ContractDetailsDialog
-        contract={selectedContract}
-        open={!!selectedContract}
-        onOpenChange={(open) => !open && setSelectedContract(null)}
-      />
-      <SiteDetailsDialog
-        site={selectedSite}
-        open={!!selectedSite}
-        onOpenChange={(open) => !open && setSelectedSite(null)}
-      />
+      {/* Contracts Table */}
+      <Card>
+        <CardContent className="p-0">
+          <DataTable
+            columns={columns}
+            data={filteredContracts}
+            isLoading={isLoading}
+            searchable={false}
+            emptyMessage="No contracts found matching your filters."
+          />
+        </CardContent>
+      </Card>
 
-      <Dialog open={addContractOpen} onOpenChange={setAddContractOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Contract</DialogTitle>
-            <DialogDescription>Create a new utility contract for a customer site</DialogDescription>
-          </DialogHeader>
-          <div className="py-4 text-center text-muted-foreground">Contract creation form coming soon</div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAddContractOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setAddContractOpen(false)}>Save Contract</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={addSiteOpen} onOpenChange={setAddSiteOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Site</DialogTitle>
-            <DialogDescription>Create a new customer location</DialogDescription>
-          </DialogHeader>
-          <div className="py-4 text-center text-muted-foreground">Site creation form coming soon</div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAddSiteOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => setAddSiteOpen(false)}>Save Site</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Contract Details Dialog */}
+      {selectedContract && (
+        <ContractDetailsDialog
+          contract={selectedContract}
+          open={!!selectedContract}
+          onOpenChange={(open) => !open && setSelectedContract(null)}
+        />
+      )}
     </div>
   )
 }

@@ -32,7 +32,8 @@ interface DataTableProps<T> {
   exportFilename?: string
   onRowClick?: (item: T) => void
   emptyMessage?: string
-  rowKey: (item: T) => string
+  searchable?: boolean
+  rowKey?: (item: T) => string
 }
 
 export function DataTable<T>({
@@ -44,6 +45,7 @@ export function DataTable<T>({
   exportFilename = "export",
   onRowClick,
   emptyMessage = "No data found",
+  searchable,
   rowKey,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<SortState | null>(null)
@@ -60,6 +62,17 @@ export function DataTable<T>({
       return { key, direction: "asc" }
     })
     setPage(1)
+  }
+
+  const getRowKey = (item: any, index: number): string => {
+    if (typeof rowKey === "function") {
+      try {
+        return rowKey(item)
+      } catch {
+        // Fallback if rowKey throws
+      }
+    }
+    return item?.id || item?._id || item?.key || String(index)
   }
 
   if (isLoading) {
@@ -106,9 +119,9 @@ export function DataTable<T>({
                 </TableCell>
               </TableRow>
             ) : (
-              paginated.map((item) => (
+              paginated.map((item, index) => (
                 <TableRow
-                  key={rowKey(item)}
+                  key={getRowKey(item, index)}
                   className={onRowClick ? "cursor-pointer" : ""}
                   onClick={() => onRowClick?.(item)}
                 >
@@ -124,7 +137,7 @@ export function DataTable<T>({
         </Table>
       </div>
 
-      <div className="flex items-center justify-between pt-4">
+      <div className="flex items-center justify-between pt-4 px-4 pb-4">
         <div className="flex items-center gap-2">
           {exportable && data.length > 0 && (
             <DropdownMenu>
@@ -149,7 +162,7 @@ export function DataTable<T>({
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <p className="text-sm text-muted-foreground">{data.length} total records</p>
+          <p className="text-xs text-muted-foreground">{data.length} total records</p>
         </div>
         {data.length > 0 && (
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} />

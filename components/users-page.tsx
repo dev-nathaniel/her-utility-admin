@@ -1,278 +1,264 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus } from "lucide-react"
+import { Search, Shield, ShieldCheck, UserCheck, Users, Zap, MapPin, Building2 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { AddUserDialog } from "./add-user-dialog"
-import { UserDetailsDialog } from "./user-details-dialog"
-import { apiClient } from "@/lib/api-client"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { apiClient, type UserData } from "@/lib/api-client"
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
-import type { ReactNode } from "react"
-
-export interface User {
-  _id: string
-  firstName: string
-  lastName: string
-  fullname: string
-  email: string
-  phoneNumber: string
-  role: string
-  profilePicture: string | null
-  createdAt: string
-  updatedAt: string
-  numberOfBusinesses: number
-  numberOfSites: number
-  numberOfContracts: number
-  status?: string
-  company?: string
-  emailVerified?: boolean
-}
+import { toast } from "sonner"
 
 export function UsersPage() {
+  const queryClient = useQueryClient()
   const searchParams = useSearchParams()
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [addUserOpen, setAddUserOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [roleFilter, setRoleFilter] = useState("all")
 
   useEffect(() => {
     const q = searchParams.get("search")
     if (q) setSearchQuery(q)
   }, [searchParams])
 
-  const { data: response, isLoading } = useQuery({
-    queryKey: ["users", searchQuery, statusFilter],
-    queryFn: () => {
-      return apiClient.getUsers({ search: searchQuery, status: statusFilter })
+  const { data: users = [], isLoading } = useQuery({
+    queryKey: ["users"],
+    queryFn: () => apiClient.getUsers(),
+    refetchInterval: 30000,
+  })
+
+  const toggleAdminMutation = useMutation({
+    mutationFn: ({ userId, isAdmin }: { userId: string; isAdmin: boolean }) =>
+      apiClient.toggleUserAdmin(userId, isAdmin),
+    onSuccess: (data, variables) => {
+      toast.success(
+        variables.isAdmin
+          ? "User promoted to Broker / Admin"
+          : "Broker privileges revoked",
+      )
+      queryClient.invalidateQueries({ queryKey: ["users"] })
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to update permissions")
     },
   })
 
-  const users: User[] = (response?.data as any)?.users || []
-
-  const filteredUsers = users.filter((user: User) => {
+  const filteredUsers = users.filter((u: any) => {
+    const q = searchQuery.toLowerCase()
     const matchesSearch =
-      user.fullname?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || (user.status || "Active") === statusFilter
-    return matchesSearch && matchesStatus
+      (u.full_name || u.fullname || "").toLowerCase().includes(q) ||
+      (u.email || "").toLowerCase().includes(q) ||
+      (u.company_name || "").toLowerCase().includes(q)
+
+    const matchesRole =
+      roleFilter === "all"
+        ? true
+        : roleFilter === "admin"
+        ? u.is_admin
+        : !u.is_admin
+
+    return matchesSearch && matchesRole
   })
 
-  useEffect(() => {
-    const openId = searchParams.get("open")
-    if (openId && users.length > 0) {
-      const u = users.find((u: User) => u._id === openId)
-      if (u) setSelectedUser(u)
-    }
-  }, [searchParams, users])
-
-  const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: apiClient.getDashboardStats,
-    placeholderData: {
-      data: {
-        overview: {
-          userCount: 0,
-          businessCount: 0,
-          siteCount: 0,
-          contractCount: 0,
-        },
-      }
-    } as any,
-  })
-
-  const columns: DataTableColumn<User>[] = [
+  const columns: DataTableColumn<any>[] = [
     {
       key: "fullname",
       label: "User",
       sortable: true,
-      render: (user) => (
+      render: (u) => (
         <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={user.profilePicture || "/placeholder.svg"} />
-            <AvatarFallback>
-              {user.fullname
-                ?.split(" ")
-                .map((n) => n[0])
-                .join("") || "U"}
+          <Avatar className="h-9 w-9">
+            <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-xs">
+              {(u.full_name || u.fullname || u.email || "U").substring(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
           <div>
-            <p className="font-medium">{user.fullname}</p>
-            <p className="text-xs text-muted-foreground">
-              Joined {new Date(user.createdAt).toLocaleDateString()}
-            </p>
+            <p className="font-semibold text-sm leading-snug">{u.full_name || u.fullname || "—"}</p>
+            <p className="text-xs text-muted-foreground">{u.email}</p>
           </div>
         </div>
       ),
     },
     {
-      key: "email",
-      label: "Email",
+      key: "company_name",
+      label: "Company",
       sortable: true,
-      render: (user) => <span className="text-sm">{user.email}</span>,
-    },
-    {
-      key: "role",
-      label: "Role",
-      sortable: true,
-      render: (user) => <span className="capitalize">{user.role}</span>,
-    },
-    {
-      key: "numberOfBusinesses",
-      label: "Biz",
-      sortable: true,
-      className: "text-center",
-    },
-    {
-      key: "numberOfSites",
-      label: "Sites",
-      sortable: true,
-      className: "text-center",
-    },
-    {
-      key: "numberOfContracts",
-      label: "Contracts",
-      sortable: true,
-      className: "text-center",
-    },
-    {
-      key: "status",
-      label: "Status",
-      sortable: true,
-      render: (user) => (
-        <Badge variant={(user.status || "Active") === "Active" ? "default" : "secondary"}>
-          {user.status || "Active"}
-        </Badge>
+      render: (u) => (
+        <div className="text-sm">
+          <p className="font-medium text-foreground">{u.company_name || "—"}</p>
+          {u.is_multi_business && (
+            <Badge variant="outline" className="text-[10px] mt-0.5">Multi-company</Badge>
+          )}
+        </div>
       ),
     },
     {
-      key: "_id",
-      label: "",
-      render: (user) => (
+      key: "is_admin",
+      label: "Role & Access",
+      sortable: true,
+      render: (u) => (
+        u.is_admin ? (
+          <Badge className="bg-purple-600 hover:bg-purple-700 text-white gap-1 font-semibold text-xs">
+            <ShieldCheck className="h-3 w-3" />
+            Broker Admin
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="gap-1 font-normal text-xs">
+            <UserCheck className="h-3 w-3 text-muted-foreground" />
+            Customer
+          </Badge>
+        )
+      ),
+    },
+    {
+      key: "property_count",
+      label: "Sites",
+      sortable: true,
+      render: (u) => (
+        <div className="flex items-center gap-1.5 text-xs font-medium">
+          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+          <span>{u.property_count || 0}</span>
+        </div>
+      ),
+    },
+    {
+      key: "contract_count",
+      label: "Contracts",
+      sortable: true,
+      render: (u) => (
+        <div className="flex items-center gap-1.5 text-xs font-medium">
+          <Zap className="h-3.5 w-3.5 text-purple-600" />
+          <span>{u.contract_count || 0}</span>
+        </div>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Joined",
+      sortable: true,
+      render: (u) => (
+        <span className="text-xs text-muted-foreground">
+          {u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Permissions",
+      render: (u) => (
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={(e) => {
-            e.stopPropagation()
-            setSelectedUser(user)
-          }}
-          className="text-right"
+          className={`h-7 px-2.5 text-xs gap-1.5 ${
+            u.is_admin
+              ? "text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
+              : "text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+          }`}
+          onClick={() =>
+            toggleAdminMutation.mutate({
+              userId: u.id || u._id,
+              isAdmin: !u.is_admin,
+            })
+          }
+          disabled={toggleAdminMutation.isPending}
         >
-          View
+          <Shield className="h-3 w-3" />
+          <span>{u.is_admin ? "Demote" : "Make Admin"}</span>
         </Button>
       ),
     },
   ]
 
+  const totalUsers = users.length
+  const totalAdmins = users.filter((u: any) => u.is_admin).length
+  const totalCustomers = totalUsers - totalAdmins
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground">Manage user accounts and their associated businesses</p>
-        </div>
-        <Button onClick={() => setAddUserOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add User
-        </Button>
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Users &amp; Access Control</h1>
+        <p className="text-muted-foreground mt-0.5">
+          View all platform accounts, monitor user utility portfolios, and manage admin privileges.
+        </p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {/* <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{((stats as any)?.overview?.userCount) || 0}</div>
-            <p className="text-xs text-muted-foreground">Across all businesses</p>
-          </CardContent>
-        </Card> */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{((stats as any)?.overview?.userCount) || 0}</div>
-            <p className="text-xs text-muted-foreground">Total registered users</p>
-          </CardContent>
+      {/* KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Card className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Total Accounts</p>
+            <p className="text-2xl font-bold mt-1">{totalUsers}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+            <Users className="h-5 w-5" />
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Businesses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{((stats as any)?.overview?.businessCount) || 0}</div>
-            <p className="text-xs text-muted-foreground">Managed by users</p>
-          </CardContent>
+
+        <Card className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Customers</p>
+            <p className="text-2xl font-bold text-emerald-600 mt-1">{totalCustomers}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+            <UserCheck className="h-5 w-5" />
+          </div>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Sites</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{((stats as any)?.overview?.siteCount) || 0}</div>
-            <p className="text-xs text-muted-foreground">Across all businesses</p>
-          </CardContent>
+
+        <Card className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Brokers &amp; Admins</p>
+            <p className="text-2xl font-bold text-purple-600 mt-1">{totalAdmins}</p>
+          </div>
+          <div className="p-2.5 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
         </Card>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search by name, email, or company..."
+            className="pl-9"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">Filter Role:</span>
+          <Select value={roleFilter} onValueChange={setRoleFilter}>
+            <SelectTrigger className="w-40 h-9 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Accounts</SelectItem>
+              <SelectItem value="customer">Customers Only</SelectItem>
+              <SelectItem value="admin">Brokers &amp; Admins</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Users Table */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search users by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Inactive">Inactive</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-0">
           <DataTable
             columns={columns}
             data={filteredUsers}
             isLoading={isLoading}
-            pageSize={15}
-            exportable
-            exportFilename="users"
-            emptyMessage="No users found"
-            rowKey={(u) => u._id}
-            onRowClick={(u) => setSelectedUser(u)}
+            searchable={false}
+            emptyMessage="No users found matching your search."
           />
         </CardContent>
       </Card>
-
-      {/* Dialogs */}
-      <AddUserDialog open={addUserOpen} onOpenChange={setAddUserOpen} />
-      <UserDetailsDialog
-        user={selectedUser}
-        open={!!selectedUser}
-        onOpenChange={(open) => !open && setSelectedUser(null)}
-      />
     </div>
   )
 }

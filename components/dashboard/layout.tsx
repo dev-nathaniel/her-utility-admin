@@ -9,17 +9,18 @@ import {
   LayoutDashboard,
   Users,
   FileText,
-  Mail,
-  Newspaper,
-  HeadphonesIcon,
+  FileCheck,
+  MessagesSquare,
   Zap,
   Menu,
   X,
   Bell,
   Search,
-  Rocket,
-  UserCog,
+  Activity,
   Building2,
+  Mail,
+  Newspaper,
+  UserCog,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -50,17 +51,21 @@ type navigationType = {
   badge?: number
 }
 
+// ── Active Navigation (Price Buddy Broker CRM & Mobile App integration) ──
 const navigation: navigationType[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Companies", href: "/dashboard/businesses", icon: Building2 },
   { name: "Users", href: "/dashboard/users", icon: Users },
-  { name: "Businesses", href: "/dashboard/businesses", icon: Building2 },
-  { name: "Quote Enquiries", href: "/dashboard/quotes", icon: FileText },
-  { name: "Email Management", href: "/dashboard/emails", icon: Mail },
-  { name: "Content Management", href: "/dashboard/content", icon: Newspaper },
-  { name: "Support", href: "/dashboard/support", icon: HeadphonesIcon},
   { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap },
-  { name: "Admins", href: "/dashboard/admins", icon: UserCog },
-  { name: "Activity Log", href: "/dashboard/activity-log", icon: Rocket },
+  { name: "Bill Scans", href: "/dashboard/scans", icon: FileCheck },
+  { name: "Quote Enquiries", href: "/dashboard/quotes", icon: FileText },
+  { name: "Support (Concierge)", href: "/dashboard/support", icon: MessagesSquare },
+  { name: "Alerts & Activity", href: "/dashboard/activity-log", icon: Activity },
+
+  // ── Pages commented out per backend & mobile app architecture (unsupported / not needed) ──
+  // { name: "Email Management", href: "/dashboard/emails", icon: Mail },
+  // { name: "Content Management", href: "/dashboard/content", icon: Newspaper },
+  // { name: "Admins", href: "/dashboard/admins", icon: UserCog },
 ]
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -102,20 +107,38 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: apiClient.getDashboardStats,
-    refetchInterval: 60000,
+    refetchInterval: 30000,
   })
 
-  const overview = stats?.data?.overview || {}
+  const { data: queueStats } = useQuery({
+    queryKey: ["queue-stats"],
+    queryFn: apiClient.getQueueStats,
+    refetchInterval: 15000,
+  })
 
-  const navigationItems = navigation.map(item => {
+  const { data: conciergeThreads } = useQuery({
+    queryKey: ["concierge-threads"],
+    queryFn: apiClient.getConciergeThreads,
+    refetchInterval: 15000,
+  })
+
+  const pendingScansCount = queueStats?.pending || 0
+  const urgentContractsCount = (stats?.urgency?.critical || 0) + (stats?.urgency?.high || 0)
+  const pendingQuotesCount = stats?.pending_quotes || 0
+  const awaitingReplyCount = (conciergeThreads || []).filter((t: any) => t.awaiting_reply).length
+
+  const navigationItems = navigation.map((item) => {
+    if (item.name === "Bill Scans") {
+      return { ...item, badge: pendingScansCount }
+    }
     if (item.name === "Utility Contracts") {
-        return { ...item, badge: overview.pendingUtilitiesCount || 0 }
+      return { ...item, badge: urgentContractsCount }
     }
     if (item.name === "Quote Enquiries") {
-        return { ...item, badge: overview.pendingQuotesCount || 0 }
+      return { ...item, badge: pendingQuotesCount }
     }
-    if (item.name === "Admins") {
-        return { ...item, badge: overview.pendingAdminsCount || 0 }
+    if (item.name === "Support (Concierge)") {
+      return { ...item, badge: awaitingReplyCount }
     }
     return item
   })
@@ -145,18 +168,18 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       return
     }
 
-    const allUsers = Array.isArray(allUsersData?.data) ? allUsersData.data : ((allUsersData?.data as any)?.users || [])
-    const allBiz = Array.isArray(allBizData?.data) ? allBizData.data : ((allBizData?.data as any)?.businesses || [])
+    const allUsers = Array.isArray(allUsersData) ? allUsersData : []
+    const allBiz = Array.isArray(allBizData) ? allBizData : []
 
     const filteredUsers = allUsers.filter(
       (u: any) =>
-        (u.fullname || "").toLowerCase().includes(trimmed) ||
+        (u.fullname || u.full_name || "").toLowerCase().includes(trimmed) ||
         (u.email || "").toLowerCase().includes(trimmed),
     )
     const filteredBiz = allBiz.filter(
       (b: any) =>
-        (b.name || "").toLowerCase().includes(trimmed) ||
-        (b.address || "").toLowerCase().includes(trimmed),
+        (b.name || b.company_name || "").toLowerCase().includes(trimmed) ||
+        (b.email || "").toLowerCase().includes(trimmed),
     )
 
     setSearchResults({ users: filteredUsers, businesses: filteredBiz })
@@ -192,11 +215,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">CRM</span>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600 text-white font-bold text-sm shadow-sm ring-2 ring-purple-500/20">
+              PB
             </div>
-            <span className="text-lg font-semibold">Admin Dashboard</span>
+            <div>
+              <span className="text-base font-bold text-foreground tracking-tight">Price Buddy</span>
+              <span className="block text-[11px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wider">
+                Broker Admin
+              </span>
+            </div>
           </div>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
@@ -204,9 +232,9 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+        <nav className="flex-1 space-y-1.5 overflow-y-auto p-4">
           {navigationItems.map((item) => {
-            const isActive = pathname === item.href
+            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
             return (
               <Link
                 key={item.name}
@@ -214,19 +242,21 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-accent text-accent-foreground"
+                    ? "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 font-semibold"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <item.icon className="h-5 w-5" />
+                  <item.icon className={cn("h-4 w-4", isActive ? "text-purple-600 dark:text-purple-400" : "")} />
                   <span>{item.name}</span>
                 </div>
-                {!!item.badge && (
+                {!!item.badge && item.badge > 0 && (
                   <Badge
                     className={cn(
-                      "h-5 min-w-5 rounded-full px-1.5 text-xs",
-                      isActive ? "bg-accent-foreground text-accent" : "bg-accent text-accent-foreground",
+                      "h-5 min-w-5 rounded-full px-1.5 text-xs border-0",
+                      isActive
+                        ? "bg-purple-600 text-white"
+                        : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200",
                     )}
                   >
                     {item.badge}
@@ -239,13 +269,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* User section */}
         <div className="border-t p-4">
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-            <Avatar className="h-8 w-8">
-              <AvatarImage src="/placeholder.svg?height=32&width=32" />
-              <AvatarFallback>{user?.fullname?.charAt(0) || "U"}</AvatarFallback>
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2 bg-muted/30">
+            <Avatar className="h-9 w-9 ring-1 ring-border">
+              <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-xs">
+                {(user?.full_name || user?.fullname || user?.email || "U").substring(0, 2).toUpperCase()}
+              </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.fullname || "User"}</p>
+              <p className="text-sm font-semibold truncate">{user?.full_name || user?.fullname || "Admin Broker"}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
             </div>
           </div>
@@ -263,12 +294,16 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <div ref={searchRef} className="relative w-96 max-w-full">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search users, businesses..."
-                className="pl-9"
+                placeholder="Search companies, users..."
+                className="pl-9 bg-muted/40"
                 value={localSearchQuery}
                 onChange={(e) => setLocalSearchQuery(e.target.value)}
-                onFocus={() => { if (localSearchQuery.trim() && totalResults > 0) setSearchOpen(true) }}
-                onKeyDown={(e) => { if (e.key === "Escape") setSearchOpen(false) }}
+                onFocus={() => {
+                  if (localSearchQuery.trim() && totalResults > 0) setSearchOpen(true)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearchOpen(false)
+                }}
               />
               {searchOpen && (
                 <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-lg border bg-popover p-1 shadow-md">
@@ -278,18 +313,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     <div className="max-h-80 overflow-y-auto">
                       {searchResults.users.length > 0 && (
                         <div>
-                          <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Users</p>
+                          <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Users
+                          </p>
                           {searchResults.users.map((u: any) => (
                             <button
-                              key={u._id}
+                              key={u.id || u._id}
                               className="flex w-full items-center gap-3 rounded-sm px-2 py-2 text-sm hover:bg-accent"
-                              onClick={() => handleSelectResult("user", u._id)}
+                              onClick={() => handleSelectResult("user", u.id || u._id)}
                             >
                               <Avatar className="h-7 w-7">
-                                <AvatarFallback className="text-xs">{(u.fullname || u.email || "?").substring(0, 2).toUpperCase()}</AvatarFallback>
+                                <AvatarFallback className="text-xs">
+                                  {(u.fullname || u.full_name || u.email || "?").substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
                               </Avatar>
                               <div className="flex-1 text-left">
-                                <p className="font-medium">{u.fullname || "Unknown"}</p>
+                                <p className="font-medium">{u.fullname || u.full_name || "Unknown"}</p>
                                 <p className="text-xs text-muted-foreground">{u.email}</p>
                               </div>
                             </button>
@@ -297,20 +336,22 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                         </div>
                       )}
                       {searchResults.businesses.length > 0 && (
-                        <div>
-                          <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Businesses</p>
+                        <div className="border-t mt-1 pt-1">
+                          <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Companies
+                          </p>
                           {searchResults.businesses.map((b: any) => (
                             <button
-                              key={b._id}
+                              key={b.id || b._id}
                               className="flex w-full items-center gap-3 rounded-sm px-2 py-2 text-sm hover:bg-accent"
-                              onClick={() => handleSelectResult("business", b._id)}
+                              onClick={() => handleSelectResult("business", b.id || b._id)}
                             >
-                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10">
-                                <Building2 className="h-3.5 w-3.5 text-primary" />
+                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                                <Building2 className="h-3.5 w-3.5" />
                               </div>
                               <div className="flex-1 text-left">
-                                <p className="font-medium">{b.name}</p>
-                                <p className="text-xs text-muted-foreground">{b.address || ""}</p>
+                                <p className="font-medium">{b.name || b.company_name}</p>
+                                <p className="text-xs text-muted-foreground">{b.email || ""}</p>
                               </div>
                             </button>
                           ))}
@@ -328,7 +369,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
-                    <Badge className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-xs bg-accent text-accent-foreground">
+                    <Badge className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-xs bg-purple-600 text-white">
                       {unreadCount}
                     </Badge>
                   )}
@@ -336,7 +377,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               </PopoverTrigger>
               <PopoverContent className="w-80 p-0" align="end">
                 <div className="flex items-center justify-between border-b px-4 py-3">
-                  <h3 className="font-semibold">Notifications</h3>
+                  <h3 className="font-semibold text-sm">Recent Alerts</h3>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -344,44 +385,34 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                     onClick={() => markAllReadMutation.mutate()}
                     disabled={markAllReadMutation.isPending}
                   >
-                    Mark all as read
+                    Mark read
                   </Button>
                 </div>
-                <ScrollArea className="h-96">
-                  <div className="divide-y">
-                    {notifications.map((notification: any) => {
-                      const nid = notification._id || notification.id
-                      const title = notification.title || notification.type || "Notification"
-                      const message = notification.message || notification.details || ""
-                      const isUnread = notification.unread || !notification.read
-                      const time = notification.time || notification.createdAt
-                      return (
-                        <div
-                          key={nid}
-                          className={cn(
-                            "p-4 hover:bg-muted/50 cursor-pointer transition-colors",
-                            isUnread && "bg-muted/30",
-                          )}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium">{title}</p>
-                                {isUnread && <span className="h-2 w-2 rounded-full bg-accent" />}
-                              </div>
-                              <p className="mt-1 text-xs text-muted-foreground">{message}</p>
-                            </div>
+                <ScrollArea className="h-80">
+                  {notifications.length === 0 ? (
+                    <p className="p-4 text-center text-xs text-muted-foreground">No recent alerts</p>
+                  ) : (
+                    <div className="divide-y">
+                      {notifications.map((notification: any) => {
+                        const nid = notification._id || notification.id
+                        const title = notification.title || "Renewal Alert"
+                        const message = notification.message || ""
+                        const time = notification.time || ""
+                        return (
+                          <div key={nid} className="p-3 hover:bg-muted/50 transition-colors">
+                            <p className="text-xs font-semibold text-foreground">{title}</p>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{message}</p>
+                            <p className="mt-1 text-[10px] text-muted-foreground">{time}</p>
                           </div>
-                          <p className="mt-2 text-xs text-muted-foreground">{time}</p>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </ScrollArea>
                 <div className="border-t p-2">
-                  <Button variant="ghost" size="sm" className="w-full" asChild>
-                    <Link href="/dashboard/notifications" onClick={() => setNotificationsOpen(false)}>
-                      View all notifications
+                  <Button variant="ghost" size="sm" className="w-full text-xs" asChild>
+                    <Link href="/dashboard/activity-log" onClick={() => setNotificationsOpen(false)}>
+                      View alert history
                     </Link>
                   </Button>
                 </div>
@@ -392,14 +423,20 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                    <AvatarFallback>{user?.fullname?.charAt(0) || "U"}</AvatarFallback>
+                    <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 font-bold text-xs">
+                      {(user?.full_name || user?.fullname || user?.email || "U").substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:inline">{user?.fullname || "User"}</span>
+                  <span className="hidden sm:inline font-medium text-sm">
+                    {user?.full_name || user?.fullname || "Admin"}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuLabel>
+                  <p className="text-sm font-semibold">{user?.full_name || user?.fullname || "Admin"}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email}</p>
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/dashboard/profile">Profile</Link>

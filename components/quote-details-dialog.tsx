@@ -1,19 +1,18 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Mail, MapPin, Zap, DollarSign, FileText, Building2, Loader2 } from "lucide-react"
-import { Separator } from "@/components/ui/separator"
+import { Zap, Clock, CheckCircle2, XCircle, FileText, Send } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { apiClient, axiosInstance } from "@/lib/api-client"
-import { useToast } from "@/hooks/use-toast"
-import { useState } from "react"
+import { apiClient } from "@/lib/api-client"
+import { toast } from "sonner"
 
 interface QuoteDetailsDialogProps {
   quote: any
@@ -22,248 +21,147 @@ interface QuoteDetailsDialogProps {
 }
 
 export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDialogProps) {
-  const [quoteAmount, setQuoteAmount] = useState("")
-  const [status, setStatus] = useState(quote?.status || "")
-  const [response, setResponse] = useState("")
-  const { toast } = useToast()
   const queryClient = useQueryClient()
+  const [status, setStatus] = useState(quote?.status || "pending")
+  const [brokerNotes, setBrokerNotes] = useState(quote?.notes || "")
 
   const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
-      const response = await axiosInstance.patch(`/quotes/${quote.id}/status`, { status: newStatus })
-      return response.data
-    },
+    mutationFn: (newStatus: string) =>
+      apiClient.updateQuoteStatus(quote.id || quote._id, newStatus, brokerNotes),
     onSuccess: () => {
-      toast({ title: "Success", description: "Quote status updated successfully" })
+      toast.success("Quote status updated")
       queryClient.invalidateQueries({ queryKey: ["quotes"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to update quote status", variant: "destructive" })
-    },
-  })
-
-  const sendQuoteMutation = useMutation({
-    mutationFn: async () => {
-      const apiResponse = await axiosInstance.post(`/quotes/${quote.id}/send`, {
-        amount: quoteAmount,
-        message: response,
-      })
-      return apiResponse.data
-    },
-    onSuccess: () => {
-      toast({ title: "Success", description: "Quote sent to customer successfully" })
-      queryClient.invalidateQueries({ queryKey: ["quotes"] })
-      onOpenChange(false)
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to send quote", variant: "destructive" })
-    },
-  })
-
-  const rejectQuoteMutation = useMutation({
-    mutationFn: async () => {
-      const apiResponse = await axiosInstance.post(`/quotes/${quote.id}/reject`)
-      return apiResponse.data
-    },
-    onSuccess: () => {
-      toast({ title: "Success", description: "Quote rejected" })
-      queryClient.invalidateQueries({ queryKey: ["quotes"] })
-      onOpenChange(false)
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to reject quote", variant: "destructive" })
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to update quote status")
     },
   })
 
   if (!quote) return null
 
-  const handleStatusUpdate = (newStatus: string) => {
-    setStatus(newStatus)
-    updateStatusMutation.mutate(newStatus)
+  const getStatusBadge = (s: string) => {
+    switch (s?.toLowerCase()) {
+      case "quoted":
+        return <Badge className="bg-emerald-600 text-white font-semibold">Quoted</Badge>
+      case "accepted":
+        return <Badge className="bg-purple-600 text-white font-semibold">Accepted</Badge>
+      case "rejected":
+        return <Badge variant="destructive" className="font-semibold">Rejected</Badge>
+      default:
+        return <Badge variant="outline" className="border-amber-500 text-amber-600 font-semibold">Pending Review</Badge>
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <DialogTitle className="text-2xl">{quote.id}</DialogTitle>
-              <DialogDescription className="mt-1">
-                Submitted on {new Date(quote.submittedDate).toLocaleString()}
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <FileText className="h-5 w-5 text-purple-600" />
+                <span>Quote Enquiry Details</span>
+              </DialogTitle>
+              <DialogDescription className="mt-0.5">
+                Submitted on {new Date(quote.created_at || quote.submittedDate || Date.now()).toLocaleString()}
               </DialogDescription>
             </div>
-            <div className="flex gap-2">
-              {/* <Badge variant={quote.priority === "High" ? "destructive" : "default"}>{quote.priority} Priority</Badge> */}
-              <Badge>{quote.status}</Badge>
-            </div>
+            {getStatusBadge(quote.status)}
           </div>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Customer Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Customer Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary">
-                    <Mail className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Email</p>
-                    <p className="text-sm font-medium">{quote.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-secondary">
-                    <FileText className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Company</p>
-                    <p className="text-sm font-medium">{quote.customer}</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-4 py-3">
+          {/* Company & Utility Overview */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="p-3 rounded-lg border bg-muted/20">
+              <span className="text-xs text-muted-foreground block mb-1">Company / Requester</span>
+              <p className="font-semibold text-foreground">{quote.company_name || quote.customer || "Client"}</p>
+              <p className="text-xs text-muted-foreground">{quote.user_email || ""}</p>
+            </div>
 
-          {/* Quote Details */}
+            <div className="p-3 rounded-lg border bg-muted/20">
+              <span className="text-xs text-muted-foreground block mb-1">Requested Utility</span>
+              <p className="font-semibold text-foreground capitalize flex items-center gap-1.5">
+                <Zap className="h-4 w-4 text-purple-600" />
+                {quote.utility_type || "Electricity"}
+              </p>
+            </div>
+          </div>
+
+          {/* Current Spend & Requirements */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Quote Details</CardTitle>
+            <CardHeader className="py-3 px-4">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Client Requirements &amp; Spend
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                    <Zap className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Utility Type</p>
-                    <p className="text-sm font-medium">{quote.utilityType}</p>
-                  </div>
+            <CardContent className="px-4 pb-4 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <span className="text-xs text-muted-foreground block mb-1">Current Monthly Spend</span>
+                  <p className="font-bold text-sm">
+                    {quote.current_spend ? `£${quote.current_spend}` : "Not stated"}
+                  </p>
                 </div>
-                {/* <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                    <MapPin className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Number of Sites</p>
-                    <p className="text-sm font-medium">{quote.sites}</p>
-                  </div>
-                </div> */}
-                <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                    <DollarSign className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Estimated Value</p>
-                    <p className="text-sm font-medium">{quote.estimatedValue}</p>
-                  </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block mb-1">Site Address</span>
+                  <p className="font-medium text-xs">
+                    {quote.property_address || "Default registered site"}
+                  </p>
                 </div>
               </div>
 
-              <Separator />
-
-              {quote.siteName && (
-                <>
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                      <Building2 className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Site Name</p>
-                      <p className="text-sm font-medium">{quote.siteName}</p>
-                    </div>
-                  </div>
-                  <Separator />
-                </>
+              {quote.notes && (
+                <div className="pt-2 border-t">
+                  <span className="text-xs text-muted-foreground block mb-1">Client Notes</span>
+                  <p className="text-xs text-foreground bg-muted/30 p-2.5 rounded-lg">{quote.notes}</p>
+                </div>
               )}
-
-              <div>
-                <Label className="text-sm font-medium">Customer Message</Label>
-                <p className="mt-2 rounded-lg bg-muted p-3 text-sm">{quote.message}</p>
-              </div>
             </CardContent>
           </Card>
 
-          {/* Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Quote Management</CardTitle>
-              <CardDescription>Update status and respond to customer</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-2">
-                <Label htmlFor="status">Update Status</Label>
-                <Select value={status} onValueChange={handleStatusUpdate} disabled={updateStatusMutation.isPending}>
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pending Review">Pending Review</SelectItem>
-                    <SelectItem value="In Progress">In Progress</SelectItem>
-                    <SelectItem value="Quoted">Quoted</SelectItem>
-                    <SelectItem value="Accepted">Accepted</SelectItem>
-                    <SelectItem value="Rejected">Rejected</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          {/* Status Update & Broker Response */}
+          <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
+            <Label className="text-xs font-semibold text-foreground">Update Enquiry Status:</Label>
+            <div className="flex gap-2">
+              <Select
+                value={status}
+                onValueChange={(val) => {
+                  setStatus(val)
+                  updateStatusMutation.mutate(val)
+                }}
+              >
+                <SelectTrigger className="w-full text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending Review</SelectItem>
+                  <SelectItem value="quoted">Quoted / Offer Prepared</SelectItem>
+                  <SelectItem value="accepted">Accepted by Client</SelectItem>
+                  <SelectItem value="rejected">Rejected / Unable to Supply</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="quote-amount">Quote Amount</Label>
-                <Input
-                  id="quote-amount"
-                  type="text"
-                  placeholder="$0.00"
-                  value={quoteAmount}
-                  onChange={(e) => setQuoteAmount(e.target.value)}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label htmlFor="response">Response to Customer</Label>
-                <Textarea
-                  id="response"
-                  placeholder="Write your response to the customer..."
-                  className="min-h-32"
-                  value={response}
-                  onChange={(e) => setResponse(e.target.value)}
-                />
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  onClick={() => sendQuoteMutation.mutate()}
-                  disabled={sendQuoteMutation.isPending}
-                >
-                  {sendQuoteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Send Quote
-                </Button>
-                <Button variant="outline" className="flex-1 bg-transparent">
-                  Schedule Follow-up
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="flex justify-end gap-2 border-t pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={() => rejectQuoteMutation.mutate()}
-            disabled={rejectQuoteMutation.isPending}
-          >
-            {rejectQuoteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Reject Quote
-          </Button>
+            <div className="space-y-1.5 pt-2">
+              <Label className="text-xs text-muted-foreground">Broker Quotation / Notes:</Label>
+              <Textarea
+                placeholder="Internal broker notes or quote rate details..."
+                value={brokerNotes}
+                onChange={(e) => setBrokerNotes(e.target.value)}
+                className="text-xs min-h-[70px]"
+              />
+              <Button
+                size="sm"
+                onClick={() => updateStatusMutation.mutate(status)}
+                disabled={updateStatusMutation.isPending}
+                className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 mt-2"
+              >
+                {updateStatusMutation.isPending ? "Saving..." : "Save Notes"}
+              </Button>
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

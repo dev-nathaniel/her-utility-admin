@@ -1,17 +1,15 @@
 "use client"
 
 import type React from "react"
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { toast } from "sonner"
+import { ShieldCheck, Loader2 } from "lucide-react"
 
 export function LoginForm() {
   const router = useRouter()
@@ -27,7 +25,6 @@ export function LoginForm() {
     try {
       await login({ email, password })
     } catch (error) {
-      // Error is handled in the mutation onError, but we log locally too
       console.error("Login error:", error)
     } finally {
       setLoading(false)
@@ -35,57 +32,63 @@ export function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-1 text-center">
-        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-          <span className="text-xl font-bold text-primary-foreground">CRM</span>
+    <Card className="w-full max-w-md shadow-lg border">
+      <CardHeader className="space-y-1 text-center pb-4">
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-600 text-white font-extrabold text-lg shadow-md shadow-purple-500/20 ring-4 ring-purple-500/10">
+          PB
         </div>
-        <CardTitle className="text-2xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to your CRM admin account</CardDescription>
+        <CardTitle className="text-2xl font-bold tracking-tight">Price Buddy Admin</CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">
+          Sign in to the broker utility management console
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className="text-xs font-medium">Email address</Label>
             <Input
               id="email"
               type="email"
-              placeholder="admin@company.com"
+              placeholder="e.g. p5_uitest_@test.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              className="h-10"
             />
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground">
-                Forgot password?
-              </Link>
+              <Label htmlFor="password" className="text-xs font-medium">Password</Label>
             </div>
             <Input
               id="password"
               type="password"
+              placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="h-10"
             />
           </div>
-          <div className="flex items-center space-x-2">
-            <Checkbox id="remember" />
-            <Label htmlFor="remember" className="text-sm font-normal">
-              Remember me
-            </Label>
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in..." : "Sign in"}
+          <Button
+            type="submit"
+            className="w-full h-10 bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all mt-2"
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Signing in...
+              </span>
+            ) : (
+              "Sign In to Console"
+            )}
           </Button>
         </form>
-        <div className="mt-4 text-center text-sm">
-          Don't have an account?{" "}
-          <Link href="/signup" className="font-medium text-foreground hover:underline">
-            Sign up
-          </Link>
+
+        <div className="mt-5 p-3 rounded-lg bg-muted/40 border text-center text-xs text-muted-foreground">
+          <p className="font-semibold text-foreground">Broker credentials:</p>
+          <p className="mt-0.5 font-mono text-[11px]">p5_uitest_@test.com / TestPass123!</p>
         </div>
       </CardContent>
     </Card>

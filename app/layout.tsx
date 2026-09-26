@@ -13,8 +13,8 @@ import { ErrorBoundary } from "@/components/error-boundary"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "CRM Admin Dashboard",
-  description: "Comprehensive CRM dashboard for customer and contract management",
+  title: "Price Buddy Admin | Utility Management & Broker CRM",
+  description: "Price Buddy Broker CRM for business utility contracts, OCR bill scans, and concierge support.",
 }
 
 export default function RootLayout({
@@ -30,7 +30,7 @@ export default function RootLayout({
             <ErrorBoundary>
               <AuthProvider>
                 <WebSocketProvider>
-                  <Suspense fallback={<div>Loading...</div>}>
+                  <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>}>
                     <SearchProvider>{children}</SearchProvider>
                   </Suspense>
                   <Toaster richColors position="top-right" />

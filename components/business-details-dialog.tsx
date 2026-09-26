@@ -6,12 +6,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { MapPin, Mail, Phone, Calendar, Zap, Building2 } from "lucide-react"
+import { MapPin, Mail, Phone, Calendar, Zap, Building2, Plus, CheckCircle2, AlertCircle, Clock } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { useQuery } from "@tanstack/react-query"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
-import { Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
 interface BusinessDetailsDialogProps {
   business: any
@@ -19,281 +21,247 @@ interface BusinessDetailsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-const mockSites = [
-  { id: 1, name: "Main Office", address: "123 Main St, New York, NY", contracts: 3, status: "Active" },
-  { id: 2, name: "Warehouse A", address: "456 Industrial Blvd, Newark, NJ", contracts: 2, status: "Active" },
-  { id: 3, name: "Retail Store #1", address: "789 Shopping Center, Brooklyn, NY", contracts: 1, status: "Active" },
-]
-
-const mockContracts = [
-  {
-    id: 1,
-    site: "Main Office",
-    type: "Electricity",
-    provider: "ConEd",
-    startDate: "2023-01-15",
-    endDate: "2025-01-14",
-    status: "Active",
-    value: "$45,000",
-  },
-  {
-    id: 2,
-    site: "Main Office",
-    type: "Gas",
-    provider: "National Grid",
-    startDate: "2023-03-01",
-    endDate: "2024-12-31",
-    status: "Active",
-    value: "$28,000",
-  },
-  {
-    id: 3,
-    site: "Warehouse A",
-    type: "Electricity",
-    provider: "PSE&G",
-    startDate: "2023-06-10",
-    endDate: "2025-06-09",
-    status: "Active",
-    value: "$52,000",
-  },
-]
-
 export function BusinessDetailsDialog({ business, open, onOpenChange }: BusinessDetailsDialogProps) {
-  const [editMode, setEditMode] = useState(false)
+  const queryClient = useQueryClient()
+  const [newNote, setNewNote] = useState("")
 
-  const businessId = business?._id || business?.id
+  const businessId = business?.id || business?._id
 
-  const { data: businessDetails, isLoading } = useQuery({
-    queryKey: ["business", businessId],
-    queryFn: () => apiClient.getBusiness(businessId),
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ["company-detail", businessId],
+    queryFn: () => apiClient.getCompany(businessId),
     enabled: !!businessId && open,
   })
 
-  const { data: contractsResponse, isLoading: contractsLoading } = useQuery({
-    queryKey: ["all-contracts"],
-    queryFn: () => apiClient.getContracts(),
-    enabled: open,
+  const updateStatusMutation = useMutation({
+    mutationFn: (newStatus: string) => apiClient.updateCompanyStatus(businessId, newStatus),
+    onSuccess: () => {
+      toast.success("Pipeline status updated")
+      queryClient.invalidateQueries({ queryKey: ["company-detail", businessId] })
+      queryClient.invalidateQueries({ queryKey: ["companies"] })
+      queryClient.invalidateQueries({ queryKey: ["recent-customers"] })
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to update status")
+    },
+  })
+
+  const addNoteMutation = useMutation({
+    mutationFn: () => apiClient.addCompanyNote(businessId, newNote),
+    onSuccess: () => {
+      toast.success("Note added")
+      setNewNote("")
+      queryClient.invalidateQueries({ queryKey: ["company-detail", businessId] })
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to add note")
+    },
   })
 
   if (!business) return null
 
-  const displayBusiness = ((businessDetails?.data as any)?.business || businessDetails?.data || business) as Record<string, any>
-
-  const extractList = (res: any, key: string) =>
-    Array.isArray(res?.data) ? res.data
-    : Array.isArray((res?.data as any)?.[key]) ? (res.data as any)[key]
-    : Array.isArray(res) ? res
-    : Array.isArray(res?.[key]) ? res[key]
-    : []
-
-  const sites: any[] = Array.isArray(displayBusiness.sites) ? displayBusiness.sites : []
-
-  const allContracts = extractList(contractsResponse, "utilities")
-  const bizUtilityIds = new Set(displayBusiness.utilities || [])
-  const siteUtilityIds = new Set(sites.flatMap((s: any) => s.utilities || []))
-  const contracts = allContracts.filter(
-    (c: any) => bizUtilityIds.has(c._id) || siteUtilityIds.has(c._id),
-  )
+  const comp = detail?.company || business
+  const properties = detail?.properties || []
+  const contracts = detail?.contracts || []
+  const notes = detail?.notes || []
+  const tasks = detail?.tasks || []
+  const currentStatus = comp.pipeline_status || "new_lead"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start gap-4">
-            <Avatar className="h-12 w-12">
-              <AvatarFallback>{displayBusiness.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1">
-              <DialogTitle className="text-2xl">{displayBusiness.name}</DialogTitle>
-              <DialogDescription className="mt-1">Business since {displayBusiness.joinedDate || new Date(displayBusiness.createdAt).toLocaleDateString()}</DialogDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Avatar className="h-12 w-12 ring-2 ring-purple-500/20">
+                <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-base">
+                  {(comp.company_name || comp.name || "C").substring(0, 2).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <DialogTitle className="text-xl font-bold">{comp.company_name || comp.name}</DialogTitle>
+                <DialogDescription className="flex items-center gap-2 mt-0.5">
+                  <span>{comp.email}</span>
+                  {comp.full_name && <span>&bull; {comp.full_name}</span>}
+                </DialogDescription>
+              </div>
             </div>
-            {/* <Badge variant={displayBusiness.status === "Active" ? "default" : "secondary"}>
-              {displayBusiness.status}
-            </Badge> */}
+
+            {/* Pipeline Status Selector */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-medium">Pipeline:</span>
+              <Select
+                value={currentStatus}
+                onValueChange={(val) => updateStatusMutation.mutate(val)}
+                disabled={updateStatusMutation.isPending}
+              >
+                <SelectTrigger className="w-36 h-8 text-xs font-semibold">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new_lead">New Lead</SelectItem>
+                  <SelectItem value="contacted">Contacted</SelectItem>
+                  <SelectItem value="quote_sent">Quote Sent</SelectItem>
+                  <SelectItem value="customer">Active Customer</SelectItem>
+                  <SelectItem value="lost">Lost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
+          <div className="py-12 text-center text-sm text-muted-foreground">Loading company records...</div>
         ) : (
-          <Tabs defaultValue="overview" className="mt-4">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="sites">Sites</TabsTrigger>
-              <TabsTrigger value="contracts">Contracts</TabsTrigger>
+          <Tabs defaultValue="sites" className="mt-4">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="sites">Sites ({properties.length})</TabsTrigger>
+              <TabsTrigger value="contracts">Contracts ({contracts.length})</TabsTrigger>
+              <TabsTrigger value="notes">Notes &amp; Activity</TabsTrigger>
+              <TabsTrigger value="details">Company Info</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview" className="space-y-4">
-              {/* Contact Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Contact Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{displayBusiness.email || displayBusiness.contactEmail || "N/A"}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{displayBusiness.phone || displayBusiness.contactPhone || "N/A"}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Joined on {displayBusiness.joinedDate || new Date(displayBusiness.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Tab: Sites */}
+            <TabsContent value="sites" className="space-y-4 mt-4">
+              {properties.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">No sites/properties registered yet.</div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {properties.map((p: any) => (
+                    <Card key={p.id || p._id} className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400">
+                          <MapPin className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm">{p.property_name || "Primary Site"}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{p.address}</p>
+                          <p className="text-xs font-mono font-medium text-purple-600 dark:text-purple-400 mt-1">
+                            {p.postcode}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
 
-              {/* Stats */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Total Sites</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5 text-primary" />
-                      <span className="text-2xl font-bold">{sites.length}</span>
+            {/* Tab: Contracts */}
+            <TabsContent value="contracts" className="space-y-4 mt-4">
+              {contracts.length === 0 ? (
+                <div className="py-8 text-center text-sm text-muted-foreground">No utility contracts attached yet.</div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Utility</TableHead>
+                        <TableHead>Supplier</TableHead>
+                        <TableHead>End Date</TableHead>
+                        <TableHead>Urgency</TableHead>
+                        <TableHead>Tariff Rates</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {contracts.map((c: any) => (
+                        <TableRow key={c.id || c._id}>
+                          <TableCell className="font-medium capitalize flex items-center gap-2">
+                            <Zap className="h-4 w-4 text-purple-600" />
+                            {c.utility_type}
+                          </TableCell>
+                          <TableCell>{c.supplier_name || "—"}</TableCell>
+                          <TableCell>
+                            {c.end_date || c.contract_end_date ? new Date(c.end_date || c.contract_end_date).toLocaleDateString() : "—"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={c.urgency_level === "critical" ? "destructive" : "secondary"}
+                              className="capitalize text-xs"
+                            >
+                              {c.urgency_level || "Normal"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {c.unit_rate ? `${c.unit_rate} p/kWh` : "—"} / {c.standing_charge ? `${c.standing_charge} p/day` : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Tab: Notes */}
+            <TabsContent value="notes" className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Textarea
+                  placeholder="Add a broker note about this client or negotiation..."
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  className="min-h-[80px]"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => addNoteMutation.mutate()}
+                  disabled={!newNote.trim() || addNoteMutation.isPending}
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  {addNoteMutation.isPending ? "Adding..." : "Add Note"}
+                </Button>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">History</p>
+                {notes.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-4">No notes recorded yet.</p>
+                ) : (
+                  notes.map((n: any, i: number) => (
+                    <div key={i} className="p-3 rounded-lg border bg-muted/30 space-y-1">
+                      <p className="text-xs text-foreground">{n.body || n.note}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {n.created_at ? new Date(n.created_at).toLocaleString() : ""}
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Active Contracts</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-5 w-5 text-primary" />
-                      <span className="text-2xl font-bold">{contracts.length}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-                {/* <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-medium">Total Value</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{displayBusiness.totalValue}</div>
-                  </CardContent>
-                </Card> */}
+                  ))
+                )}
               </div>
             </TabsContent>
 
-            <TabsContent value="sites" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Business Sites</CardTitle>
-                      <CardDescription>All locations for this business</CardDescription>
-                    </div>
-                    <Button size="sm" onClick={() => alert("Add Site feature coming soon")}>
-                      Add Site
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {sites.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No sites found</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {sites.map((site: any) => (
-                        <div key={site._id || site.id} className="flex items-center justify-between rounded-lg border p-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                              <Building2 className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <p className="font-medium">{site.name}</p>
-                              <p className="text-sm text-muted-foreground">{site.address}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <Badge variant="outline">{(site.contracts?.length ?? site.contracts ?? 0)} contracts</Badge>
-                            <p className="mt-1 text-xs text-muted-foreground">{site.status || "Active"}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="contracts" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Utility Contracts</CardTitle>
-                      <CardDescription>All active contracts across sites</CardDescription>
-                    </div>
-                    <Button size="sm" onClick={() => alert("Add Contract feature coming soon")}>
-                      Add Contract
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {contractsLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : contracts.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-8">No contracts found</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Site</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Provider</TableHead>
-                          <TableHead>Term</TableHead>
-                          {/* <TableHead>Value</TableHead> */}
-                          <TableHead>Status</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {contracts.map((contract: any) => (
-                          <TableRow key={contract._id || contract.id}>
-                            <TableCell className="font-medium">{contract.site?.name || contract.site || "N/A"}</TableCell>
-                            <TableCell>
-                              <Badge variant="outline">{contract.type || "N/A"}</Badge>
-                            </TableCell>
-                            <TableCell>{contract.supplier || contract.provider || "N/A"}</TableCell>
-                            <TableCell className="text-sm">
-                              {contract.contractStart || contract.startDate || "N/A"} to {contract.contractEnd || contract.endDate || "N/A"}
-                            </TableCell>
-                            {/* <TableCell className="font-medium">{contract.value}</TableCell> */}
-                            <TableCell>
-                              <Badge variant={(contract.status === "Active" || contract.status === "active") ? "default" : "secondary"}>{contract.status || "Unknown"}</Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  )}
-                </CardContent>
-              </Card>
+            {/* Tab: Info */}
+            <TabsContent value="details" className="space-y-3 mt-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Company Name</span>
+                  <span className="font-semibold">{comp.company_name || comp.name || "—"}</span>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Email</span>
+                  <span className="font-semibold">{comp.email || "—"}</span>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Business Type</span>
+                  <span className="font-semibold capitalize">{comp.business_type || "Limited Company"}</span>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Company Number</span>
+                  <span className="font-semibold">{comp.company_number || "—"}</span>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Assigned Broker</span>
+                  <span className="font-semibold">{comp.assigned_broker_name || "Unassigned"}</span>
+                </div>
+                <div className="p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Joined Date</span>
+                  <span className="font-semibold">
+                    {comp.created_at ? new Date(comp.created_at).toLocaleDateString() : "—"}
+                  </span>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         )}
-
-        <div className="flex justify-end gap-2 pt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-          <Button
-            onClick={() => {
-              setEditMode(true)
-              alert("Edit Business feature coming soon")
-            }}
-          >
-            Edit Business
-          </Button>
-        </div>
       </DialogContent>
     </Dialog>
   )

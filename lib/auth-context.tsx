@@ -2,29 +2,20 @@
 import { createContext, useContext, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { apiClient, axiosInstance } from "./api-client"
+import { apiClient, axiosInstance, type UserData } from "./api-client"
 import { toast } from "sonner"
 
-export interface User {
+export interface User extends UserData {
   _id: string
-  email: string
-  firstName: string
-  lastName: string
   fullname: string
-  role: string
-  businesses: string[]
-  sites: string[]
-  profilePicture: string | null
-  createdAt: string
-  updatedAt: string
 }
 
 interface AuthCredentials {
   email: string
   password: string
-  firstName?: string
-  lastName?: string
+  full_name?: string
   name?: string
+  company_name?: string
 }
 
 interface AuthContextType {
@@ -41,18 +32,38 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 function extractUser(response: unknown): User | null {
   if (!response || typeof response !== "object") return null
   const obj = response as Record<string, unknown>
-  if (obj.data && typeof obj.data === "object" && "user" in (obj.data as Record<string, unknown>)) {
-    return (obj.data as Record<string, unknown>).user as User
+  let rawUser: any = null
+
+  if (obj.user && typeof obj.user === "object") {
+    rawUser = obj.user
+  } else if (obj.data && typeof obj.data === "object") {
+    const d = obj.data as Record<string, unknown>
+    if (d.user && typeof d.user === "object") {
+      rawUser = d.user
+    } else if (d.id || d.email) {
+      rawUser = d
+    }
+  } else if (obj.id || obj.email) {
+    rawUser = obj
   }
-  if ("user" in obj) return obj.user as User
+
+  if (rawUser) {
+    return {
+      ...rawUser,
+      _id: rawUser.id || rawUser._id,
+      fullname: rawUser.full_name || rawUser.fullname || rawUser.email,
+    } as User
+  }
+
   return null
 }
 
 function extractToken(response: unknown): string | null {
   if (!response || typeof response !== "object") return null
   const obj = response as Record<string, unknown>
+  if (obj.token && typeof obj.token === "string") return obj.token
   const inner = obj.data && typeof obj.data === "object" ? (obj.data as Record<string, unknown>) : obj
-  return (inner?.token as string) || null
+  return (inner?.token as string) || (inner?.access_token as string) || null
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -60,19 +71,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
 
   // Fetch current user
-  const { data: userResponse, isLoading, isError } = useQuery({
+  const { data: userResponse, isLoading } = useQuery({
     queryKey: ["user"],
     queryFn: apiClient.getCurrentUser,
     retry: false,
-    staleTime: Infinity, // User data shouldn't go stale quickly unless we mutate it
+    staleTime: 60000,
   })
 
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: apiClient.login,
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { message?: string } } }
-      toast.error(err.response?.data?.message || "Login failed")
+      const err = error as { response?: { data?: { detail?: string; message?: string } } }
+      toast.error(err.response?.data?.detail || err.response?.data?.message || "Login failed")
     },
   })
 
@@ -80,8 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signupMutation = useMutation({
     mutationFn: apiClient.signup,
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { message?: string } } }
-      toast.error(err.response?.data?.message || "Signup failed")
+      const err = error as { response?: { data?: { detail?: string; message?: string } } }
+      toast.error(err.response?.data?.detail || err.response?.data?.message || "Signup failed")
     },
   })
 
@@ -90,6 +101,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: apiClient.logout,
     onSuccess: () => {
       document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth-token")
+      }
       delete axiosInstance.defaults.headers.common["Authorization"]
       queryClient.setQueryData(["user"], null)
       queryClient.removeQueries({ queryKey: ["user"] })
@@ -97,8 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       toast.success("Logged out successfully")
     },
     onError: () => {
-      // Even if logout fails on server, we clear local state
       document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth-token")
+      }
       delete axiosInstance.defaults.headers.common["Authorization"]
       queryClient.setQueryData(["user"], null)
       queryClient.removeQueries({ queryKey: ["user"] })
@@ -111,9 +127,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = extractToken(result)
     if (token) {
       document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`
+      if (typeof window !== "undefined") {
+        localStorage.setItem("auth-token", token)
+      }
       axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`
     }
-    queryClient.setQueryData(["user"], result)
+    const currentUser = extractUser(result) || (await apiClient.getCurrentUser())
+    queryClient.setQueryData(["user"], currentUser)
     toast.success("Login successful!")
     window.location.href = "/dashboard"
   }
@@ -123,9 +143,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = extractToken(result)
     if (token) {
       document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`
+      if (typeof window !== "undefined") {
+        localStorage.setItem("auth-token", token)
+      }
       axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`
     }
-    queryClient.setQueryData(["user"], result)
+    const currentUser = extractUser(result) || (await apiClient.getCurrentUser())
+    queryClient.setQueryData(["user"], currentUser)
     toast.success("Account created successfully!")
     window.location.href = "/dashboard"
   }
@@ -134,14 +158,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logoutMutation.mutateAsync()
   }
 
+  const currentUser = extractUser(userResponse)
+
   return (
     <AuthContext.Provider
       value={{
-        user: extractUser(userResponse),
+        user: currentUser,
         login,
         signup,
         logout,
-        isAuthenticated: !!extractUser(userResponse),
+        isAuthenticated: !!currentUser,
         isLoading,
       }}
     >
