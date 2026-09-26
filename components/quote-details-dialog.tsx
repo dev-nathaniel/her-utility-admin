@@ -45,7 +45,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
       case "quoted":
         return <Badge className="bg-emerald-600 text-white font-semibold">Quoted</Badge>
       case "accepted":
-        return <Badge className="bg-purple-600 text-white font-semibold">Accepted</Badge>
+        return <Badge className="font-semibold">Accepted</Badge>
       case "rejected":
         return <Badge variant="destructive" className="font-semibold">Rejected</Badge>
       default:
@@ -60,7 +60,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                <FileText className="h-5 w-5 text-purple-600" />
+                <FileText className="h-5 w-5 text-primary" />
                 <span>Quote Enquiry Details</span>
               </DialogTitle>
               <DialogDescription className="mt-0.5">
@@ -83,7 +83,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
             <div className="p-3 rounded-lg border bg-muted/20">
               <span className="text-xs text-muted-foreground block mb-1">Requested Utility</span>
               <p className="font-semibold text-foreground capitalize flex items-center gap-1.5">
-                <Zap className="h-4 w-4 text-purple-600" />
+                <Zap className="h-4 w-4 text-muted-foreground" />
                 {quote.utility_type || "Electricity"}
               </p>
             </div>
@@ -156,7 +156,7 @@ export function QuoteDetailsDialog({ quote, open, onOpenChange }: QuoteDetailsDi
                 size="sm"
                 onClick={() => updateStatusMutation.mutate(status)}
                 disabled={updateStatusMutation.isPending}
-                className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-8 mt-2"
+                className="text-xs h-8 mt-2"
               >
                 {updateStatusMutation.isPending ? "Saving..." : "Save Notes"}
               </Button>

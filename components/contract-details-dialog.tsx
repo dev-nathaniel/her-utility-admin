@@ -84,7 +84,7 @@ export function ContractDetailsDialog({ contract, open, onOpenChange }: Contract
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
               <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                <Zap className="h-5 w-5 text-purple-600" />
+                <Zap className="h-5 w-5 text-primary" />
                 <span className="capitalize">{contract.utility_type || "Utility"} Contract</span>
               </DialogTitle>
               <DialogDescription className="mt-0.5">

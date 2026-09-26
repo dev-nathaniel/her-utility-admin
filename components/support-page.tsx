@@ -156,12 +156,12 @@ export function SupportPage() {
                       onClick={() => setSelectedUserId(thread.user_id)}
                       className={`w-full text-left p-3.5 transition-colors flex items-start gap-3 ${
                         isSelected
-                          ? "bg-purple-50 dark:bg-purple-950/40 border-l-4 border-l-purple-600"
+                          ? "bg-accent/15 border-l-4 border-l-primary"
                           : "hover:bg-muted/40"
                       }`}
                     >
                       <Avatar className="h-9 w-9 flex-shrink-0">
-                        <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-xs">
+                        <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                           {(thread.full_name || thread.company_name || thread.email || "C")
                             .substring(0, 2)
                             .toUpperCase()}
@@ -205,7 +205,7 @@ export function SupportPage() {
                 <div className="h-16 border-b px-5 flex items-center justify-between bg-card flex-shrink-0">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9 ring-1 ring-border">
-                      <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 font-bold text-xs">
+                      <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                         {(selectedThread.company_name || selectedThread.full_name || "C").substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -259,7 +259,7 @@ export function SupportPage() {
                           <div
                             className={`max-w-md rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
                               isBroker
-                                ? "bg-purple-600 text-white rounded-tr-none"
+                                ? "bg-primary text-primary-foreground rounded-tr-none"
                                 : "bg-card border text-foreground rounded-tl-none"
                             }`}
                           >
@@ -286,7 +286,7 @@ export function SupportPage() {
                       size="icon"
                       onClick={handleSend}
                       disabled={!replyText.trim() || replyMutation.isPending}
-                      className="absolute right-2.5 bottom-2.5 h-8 w-8 bg-purple-600 hover:bg-purple-700 text-white"
+                      className="absolute right-2.5 bottom-2.5 h-8 w-8"
                     >
                       <Send className="h-4 w-4" />
                     </Button>

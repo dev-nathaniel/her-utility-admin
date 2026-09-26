@@ -51,7 +51,7 @@ export function QuotesPage() {
       case "quoted":
         return <Badge className="bg-emerald-600 text-white font-semibold">Quoted</Badge>
       case "accepted":
-        return <Badge className="bg-purple-600 text-white font-semibold">Accepted</Badge>
+        return <Badge className="font-semibold">Accepted</Badge>
       case "rejected":
         return <Badge variant="destructive" className="font-semibold">Rejected</Badge>
       default:
@@ -71,7 +71,7 @@ export function QuotesPage() {
       sortable: true,
       render: (q) => (
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
             <FileText className="h-4 w-4" />
           </div>
           <div>
@@ -87,7 +87,7 @@ export function QuotesPage() {
       sortable: true,
       render: (q) => (
         <div className="flex items-center gap-1.5 capitalize text-sm font-medium">
-          <Zap className="h-4 w-4 text-purple-600" />
+          <Zap className="h-4 w-4 text-muted-foreground" />
           <span>{q.utility_type}</span>
         </div>
       ),
@@ -185,9 +185,9 @@ export function QuotesPage() {
         <Card className="p-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Accepted Contracts</p>
-            <p className="text-2xl font-bold text-purple-600 mt-1">{acceptedCount}</p>
+            <p className="text-2xl font-bold text-primary mt-1">{acceptedCount}</p>
           </div>
-          <div className="p-2.5 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+          <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
             <Zap className="h-5 w-5" />
           </div>
         </Card>

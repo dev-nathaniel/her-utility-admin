@@ -34,8 +34,8 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md shadow-lg border">
       <CardHeader className="space-y-1 text-center pb-4">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-600 text-white font-extrabold text-lg shadow-md shadow-purple-500/20 ring-4 ring-purple-500/10">
-          PB
+        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
+          <span className="text-xl font-bold text-primary-foreground">PB</span>
         </div>
         <CardTitle className="text-2xl font-bold tracking-tight">Price Buddy Admin</CardTitle>
         <CardDescription className="text-xs text-muted-foreground">
@@ -72,7 +72,7 @@ export function LoginForm() {
           </div>
           <Button
             type="submit"
-            className="w-full h-10 bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-all mt-2"
+            className="w-full h-10 font-semibold mt-2"
             disabled={loading}
           >
             {loading ? (

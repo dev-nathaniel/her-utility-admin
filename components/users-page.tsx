@@ -72,7 +72,7 @@ export function UsersPage() {
       render: (u) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-xs">
+            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
               {(u.full_name || u.fullname || u.email || "U").substring(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -102,7 +102,7 @@ export function UsersPage() {
       sortable: true,
       render: (u) => (
         u.is_admin ? (
-          <Badge className="bg-purple-600 hover:bg-purple-700 text-white gap-1 font-semibold text-xs">
+          <Badge className="gap-1 font-semibold text-xs">
             <ShieldCheck className="h-3 w-3" />
             Broker Admin
           </Badge>
@@ -131,7 +131,7 @@ export function UsersPage() {
       sortable: true,
       render: (u) => (
         <div className="flex items-center gap-1.5 text-xs font-medium">
-          <Zap className="h-3.5 w-3.5 text-purple-600" />
+          <Zap className="h-3.5 w-3.5 text-muted-foreground" />
           <span>{u.contract_count || 0}</span>
         </div>
       ),
@@ -155,8 +155,8 @@ export function UsersPage() {
           size="sm"
           className={`h-7 px-2.5 text-xs gap-1.5 ${
             u.is_admin
-              ? "text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
-              : "text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950/40"
+              ? "text-destructive hover:bg-destructive/10"
+              : "text-primary hover:bg-primary/10"
           }`}
           onClick={() =>
             toggleAdminMutation.mutate({
@@ -212,9 +212,9 @@ export function UsersPage() {
         <Card className="p-4 flex items-center justify-between">
           <div>
             <p className="text-xs font-medium text-muted-foreground">Brokers &amp; Admins</p>
-            <p className="text-2xl font-bold text-purple-600 mt-1">{totalAdmins}</p>
+            <p className="text-2xl font-bold text-primary mt-1">{totalAdmins}</p>
           </div>
-          <div className="p-2.5 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+          <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
             <ShieldCheck className="h-5 w-5" />
           </div>
         </Card>

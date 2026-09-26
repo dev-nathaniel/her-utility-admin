@@ -137,7 +137,7 @@ export function ScansPage() {
       sortable: true,
       render: (s) => (
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
             <FileText className="h-4 w-4" />
           </div>
           <div>
@@ -297,7 +297,7 @@ export function ScansPage() {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
                   <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                    <FileCheck className="h-5 w-5 text-purple-600" />
+                    <FileCheck className="h-5 w-5 text-primary" />
                     <span>Review Smart Bill OCR Scan</span>
                   </DialogTitle>
                   <DialogDescription className="mt-0.5">
@@ -333,7 +333,7 @@ export function ScansPage() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => sanityCheckMutation.mutate(selectedScan.id || selectedScan._id)}
+                      onClick={() => sanityCheckMutation.mutate(selectedScan.id || selectedScan._id || "")}
                       disabled={sanityCheckMutation.isPending}
                       className="h-7 text-xs gap-1.5"
                     >
@@ -414,7 +414,7 @@ export function ScansPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => rejectScanMutation.mutate(selectedScan.id || selectedScan._id)}
+                      onClick={() => rejectScanMutation.mutate(selectedScan.id || selectedScan._id || "")}
                       disabled={rejectScanMutation.isPending}
                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
@@ -422,9 +422,9 @@ export function ScansPage() {
                     </Button>
                     <Button
                       size="sm"
-                      onClick={() => applyScanMutation.mutate(selectedScan.id || selectedScan._id)}
+                      onClick={() => applyScanMutation.mutate(selectedScan.id || selectedScan._id || "")}
                       disabled={applyScanMutation.isPending}
-                      className="bg-purple-600 hover:bg-purple-700 text-white gap-1.5"
+                      className="gap-1.5"
                     >
                       <CheckCircle2 className="h-4 w-4" />
                       <span>{applyScanMutation.isPending ? "Applying..." : "Approve & Apply to Contract"}</span>

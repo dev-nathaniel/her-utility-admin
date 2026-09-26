@@ -29,7 +29,7 @@ export default function Page() {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
+          <Button asChild className="gap-2">
             <Link href="/dashboard/support">
               <MessagesSquare className="h-4 w-4" />
               <span>Go to Concierge Support Chat</span>

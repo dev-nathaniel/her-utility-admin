@@ -73,8 +73,8 @@ export function DashboardOverview() {
       subtext: `${urgency.critical + urgency.high} need urgent broker review`,
       icon: Zap,
       href: "/dashboard/contracts",
-      color: "text-purple-600 dark:text-purple-400",
-      bg: "bg-purple-100 dark:bg-purple-950/60",
+      color: "text-primary",
+      bg: "bg-primary/10",
     },
     {
       title: "Registered Users",
@@ -82,8 +82,8 @@ export function DashboardOverview() {
       subtext: `${stats?.properties ?? 0} customer sites attached`,
       icon: Users,
       href: "/dashboard/users",
-      color: "text-blue-600 dark:text-blue-400",
-      bg: "bg-blue-100 dark:bg-blue-950/60",
+      color: "text-primary",
+      bg: "bg-primary/10",
     },
     {
       title: "Pending Bill Scans",
@@ -129,7 +129,7 @@ export function DashboardOverview() {
       case "contacted":
         return <Badge variant="outline" className="border-amber-400 text-amber-600 dark:text-amber-400">Contacted</Badge>
       case "quote_sent":
-        return <Badge variant="outline" className="border-purple-400 text-purple-600 dark:text-purple-400">Quote Sent</Badge>
+        return <Badge variant="outline">Quote Sent</Badge>
       case "customer":
         return <Badge className="bg-emerald-600 text-white">Active Customer</Badge>
       case "lost":
@@ -160,7 +160,7 @@ export function DashboardOverview() {
             <RefreshCw className={`h-4 w-4 ${renewalSweepMutation.isPending ? "animate-spin" : ""}`} />
             <span>{renewalSweepMutation.isPending ? "Running Sweep..." : "Run Renewal Sweep"}</span>
           </Button>
-          <Button asChild size="sm" className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
+          <Button asChild size="sm" className="gap-2">
             <Link href="/dashboard/scans">
               <FileCheck className="h-4 w-4" />
               <span>Review Bill Scans</span>
@@ -173,7 +173,7 @@ export function DashboardOverview() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
           <Link key={kpi.title} href={kpi.href}>
-            <Card className="hover:border-purple-300 dark:hover:border-purple-700 transition-all hover:shadow-sm cursor-pointer h-full">
+            <Card className="hover:border-accent/40 transition-all hover:shadow-sm cursor-pointer h-full">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{kpi.title}</CardTitle>
                 <div className={`p-2 rounded-lg ${kpi.bg}`}>
@@ -190,7 +190,7 @@ export function DashboardOverview() {
       </div>
 
       {/* Urgency Radar Card */}
-      <Card className="border-l-4 border-l-purple-600">
+      <Card className="border-l-4 border-l-primary">
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
@@ -203,7 +203,7 @@ export function DashboardOverview() {
               </CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard/contracts" className="text-xs font-semibold text-purple-600 hover:text-purple-700">
+              <Link href="/dashboard/contracts" className="text-xs font-semibold text-primary hover:underline">
                 View all contracts &rarr;
               </Link>
             </Button>
@@ -295,7 +295,7 @@ export function DashboardOverview() {
                   <div key={cust.id} className="py-3 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 min-w-0">
                       <Avatar className="h-9 w-9">
-                        <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 text-xs font-bold">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                           {(cust.company_name || cust.email || "C").substring(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
@@ -332,41 +332,41 @@ export function DashboardOverview() {
             <CardContent className="space-y-2.5">
               <Button asChild variant="outline" className="w-full justify-start gap-2.5 h-11 text-sm font-medium">
                 <Link href="/dashboard/scans">
-                  <FileCheck className="h-4 w-4 text-purple-600" />
+                  <FileCheck className="h-4 w-4 text-muted-foreground" />
                   <span>Review Bill Scans Queue</span>
                   {queueStats?.pending ? (
-                    <Badge className="ml-auto bg-purple-600 text-white text-xs">{queueStats.pending}</Badge>
+                    <Badge className="ml-auto text-xs">{queueStats.pending}</Badge>
                   ) : null}
                 </Link>
               </Button>
 
               <Button asChild variant="outline" className="w-full justify-start gap-2.5 h-11 text-sm font-medium">
                 <Link href="/dashboard/support">
-                  <MessagesSquare className="h-4 w-4 text-blue-600" />
+                  <MessagesSquare className="h-4 w-4 text-muted-foreground" />
                   <span>Concierge Customer Chat</span>
                 </Link>
               </Button>
 
               <Button asChild variant="outline" className="w-full justify-start gap-2.5 h-11 text-sm font-medium">
                 <Link href="/dashboard/quotes">
-                  <FileText className="h-4 w-4 text-emerald-600" />
+                  <FileText className="h-4 w-4 text-muted-foreground" />
                   <span>Manage Quote Enquiries</span>
                   {stats?.pending_quotes ? (
-                    <Badge className="ml-auto bg-emerald-600 text-white text-xs">{stats.pending_quotes}</Badge>
+                    <Badge className="ml-auto text-xs">{stats.pending_quotes}</Badge>
                   ) : null}
                 </Link>
               </Button>
 
               <Button asChild variant="outline" className="w-full justify-start gap-2.5 h-11 text-sm font-medium">
                 <Link href="/dashboard/contracts">
-                  <Zap className="h-4 w-4 text-amber-600" />
+                  <Zap className="h-4 w-4 text-muted-foreground" />
                   <span>View All Utility Contracts</span>
                 </Link>
               </Button>
 
               <Button asChild variant="outline" className="w-full justify-start gap-2.5 h-11 text-sm font-medium">
                 <Link href="/dashboard/users">
-                  <Users className="h-4 w-4 text-indigo-600" />
+                  <Users className="h-4 w-4 text-muted-foreground" />
                   <span>Manage Users &amp; Permissions</span>
                 </Link>
               </Button>

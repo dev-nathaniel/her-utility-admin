@@ -86,7 +86,7 @@ export function ActivityLogPage() {
       sortable: true,
       render: (a) => (
         <span className="capitalize text-xs font-semibold flex items-center gap-1.5">
-          <Zap className="h-3.5 w-3.5 text-purple-600" />
+          <Zap className="h-3.5 w-3.5 text-muted-foreground" />
           {a.utility_type || "Energy"}
         </span>
       ),

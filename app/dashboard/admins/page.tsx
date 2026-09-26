@@ -19,7 +19,7 @@ export default function Page() {
     <div className="space-y-6 max-w-2xl mx-auto py-12">
       <Card className="text-center p-6 border-dashed">
         <CardHeader>
-          <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-950 flex items-center justify-center mx-auto mb-2 text-purple-600 dark:text-purple-400">
+          <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2 text-primary">
             <ShieldCheck className="h-6 w-6" />
           </div>
           <CardTitle className="text-xl">Admins Queue (Commented Out)</CardTitle>
@@ -29,7 +29,7 @@ export default function Page() {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
-          <Button asChild className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
+          <Button asChild className="gap-2">
             <Link href="/dashboard/users">
               <Users className="h-4 w-4" />
               <span>Go to Users &amp; Permissions</span>

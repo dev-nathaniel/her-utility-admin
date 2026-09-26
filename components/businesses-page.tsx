@@ -56,7 +56,7 @@ export function BusinessesPage() {
       case "contacted":
         return <Badge variant="outline" className="border-amber-400 text-amber-600 dark:text-amber-400 font-semibold">Contacted</Badge>
       case "quote_sent":
-        return <Badge variant="outline" className="border-purple-400 text-purple-600 dark:text-purple-400 font-semibold">Quote Sent</Badge>
+        return <Badge variant="outline">Quote Sent</Badge>
       case "customer":
         return <Badge className="bg-emerald-600 text-white font-semibold">Active Customer</Badge>
       case "lost":
@@ -87,7 +87,7 @@ export function BusinessesPage() {
       render: (biz) => (
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-xs">
+            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
               {(biz.company_name || biz.name || "C").substring(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
@@ -121,7 +121,7 @@ export function BusinessesPage() {
       sortable: true,
       render: (biz) => (
         <div className="flex items-center gap-1.5 text-sm font-medium">
-          <Zap className="h-3.5 w-3.5 text-purple-600" />
+          <Zap className="h-3.5 w-3.5 text-muted-foreground" />
           <span>{biz.numberOfContracts || 0}</span>
         </div>
       ),
@@ -181,7 +181,7 @@ export function BusinessesPage() {
             <p className="text-xs font-medium text-muted-foreground">Total Accounts</p>
             <p className="text-2xl font-bold mt-1">{totalCompanies}</p>
           </div>
-          <div className="p-2.5 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+          <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
             <Building2 className="h-5 w-5" />
           </div>
         </Card>

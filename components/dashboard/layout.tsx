@@ -215,16 +215,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="flex h-16 items-center justify-between border-b px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-600 text-white font-bold text-sm shadow-sm ring-2 ring-purple-500/20">
-              PB
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <span className="text-sm font-bold text-primary-foreground">CRM</span>
             </div>
-            <div>
-              <span className="text-base font-bold text-foreground tracking-tight">Price Buddy</span>
-              <span className="block text-[11px] text-purple-600 dark:text-purple-400 font-semibold uppercase tracking-wider">
-                Broker Admin
-              </span>
-            </div>
+            <span className="text-lg font-semibold">Admin Dashboard</span>
           </div>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
@@ -232,7 +227,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1.5 overflow-y-auto p-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
           {navigationItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
             return (
@@ -242,21 +237,19 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 className={cn(
                   "flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive
-                    ? "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 font-semibold"
+                    ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
                 <div className="flex items-center gap-3">
-                  <item.icon className={cn("h-4 w-4", isActive ? "text-purple-600 dark:text-purple-400" : "")} />
+                  <item.icon className="h-5 w-5" />
                   <span>{item.name}</span>
                 </div>
                 {!!item.badge && item.badge > 0 && (
                   <Badge
                     className={cn(
-                      "h-5 min-w-5 rounded-full px-1.5 text-xs border-0",
-                      isActive
-                        ? "bg-purple-600 text-white"
-                        : "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200",
+                      "h-5 min-w-5 rounded-full px-1.5 text-xs",
+                      isActive ? "bg-accent-foreground text-accent" : "bg-accent text-accent-foreground",
                     )}
                   >
                     {item.badge}
@@ -269,14 +262,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
         {/* User section */}
         <div className="border-t p-4">
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2 bg-muted/30">
-            <Avatar className="h-9 w-9 ring-1 ring-border">
-              <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-xs">
-                {(user?.full_name || user?.fullname || user?.email || "U").substring(0, 2).toUpperCase()}
-              </AvatarFallback>
+          <div className="flex items-center gap-3 rounded-lg px-3 py-2">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback>{(user?.full_name || user?.fullname || user?.email || "U").substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">{user?.full_name || user?.fullname || "Admin Broker"}</p>
+              <p className="text-sm font-medium truncate">{user?.full_name || user?.fullname || "Admin"}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
             </div>
           </div>
@@ -346,7 +337,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                               className="flex w-full items-center gap-3 rounded-sm px-2 py-2 text-sm hover:bg-accent"
                               onClick={() => handleSelectResult("business", b.id || b._id)}
                             >
-                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
                                 <Building2 className="h-3.5 w-3.5" />
                               </div>
                               <div className="flex-1 text-left">
@@ -369,7 +360,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
-                    <Badge className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-xs bg-purple-600 text-white">
+                    <Badge className="absolute -right-1 -top-1 h-5 min-w-5 rounded-full px-1 text-xs bg-accent text-accent-foreground">
                       {unreadCount}
                     </Badge>
                   )}
@@ -423,7 +414,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="gap-2">
                   <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 font-bold text-xs">
+                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                       {(user?.full_name || user?.fullname || user?.email || "U").substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>

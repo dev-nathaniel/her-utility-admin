@@ -41,9 +41,9 @@ export function ContractsPage() {
         return <Droplets className="h-4 w-4 text-blue-500" />
       case "telecoms":
       case "broadband":
-        return <PhoneCall className="h-4 w-4 text-purple-500" />
+        return <PhoneCall className="h-4 w-4 text-blue-500" />
       default:
-        return <Zap className="h-4 w-4 text-purple-600" />
+        return <Zap className="h-4 w-4 text-muted-foreground" />
     }
   }
 
@@ -186,7 +186,7 @@ export function ContractsPage() {
             <p className="text-xs font-medium text-muted-foreground">Total Agreements</p>
             <p className="text-2xl font-bold mt-1">{totalContracts}</p>
           </div>
-          <div className="p-2.5 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+          <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
             <Zap className="h-5 w-5" />
           </div>
         </Card>

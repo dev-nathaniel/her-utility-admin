@@ -73,8 +73,8 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
         <DialogHeader>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Avatar className="h-12 w-12 ring-2 ring-purple-500/20">
-                <AvatarFallback className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 font-bold text-base">
+              <Avatar className="h-12 w-12 ring-2 ring-primary/10">
+                <AvatarFallback className="bg-primary/10 text-primary font-bold text-base">
                   {(comp.company_name || comp.name || "C").substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -136,7 +136,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm">{p.property_name || "Primary Site"}</p>
                           <p className="text-xs text-muted-foreground mt-0.5">{p.address}</p>
-                          <p className="text-xs font-mono font-medium text-purple-600 dark:text-purple-400 mt-1">
+                          <p className="text-xs font-mono font-medium text-foreground mt-1">
                             {p.postcode}
                           </p>
                         </div>
@@ -167,7 +167,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                       {contracts.map((c: any) => (
                         <TableRow key={c.id || c._id}>
                           <TableCell className="font-medium capitalize flex items-center gap-2">
-                            <Zap className="h-4 w-4 text-purple-600" />
+                            <Zap className="h-4 w-4 text-muted-foreground" />
                             {c.utility_type}
                           </TableCell>
                           <TableCell>{c.supplier_name || "—"}</TableCell>
@@ -206,7 +206,6 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                   size="sm"
                   onClick={() => addNoteMutation.mutate()}
                   disabled={!newNote.trim() || addNoteMutation.isPending}
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
                 >
                   {addNoteMutation.isPending ? "Adding..." : "Add Note"}
                 </Button>
