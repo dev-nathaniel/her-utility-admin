@@ -33,11 +33,17 @@ export function SupportPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Fetch all threads
-  const { data: threads = [], isLoading: threadsLoading } = useQuery({
+  const { data: rawThreads = [], isLoading: threadsLoading } = useQuery({
     queryKey: ["concierge-threads"],
     queryFn: () => apiClient.getConciergeThreads(),
     refetchInterval: 10000,
   })
+
+  const threads: ConciergeThread[] = Array.isArray(rawThreads)
+    ? rawThreads
+    : (rawThreads as any)?.threads && Array.isArray((rawThreads as any).threads)
+    ? (rawThreads as any).threads
+    : []
 
   // Auto-select first thread if none selected
   useEffect(() => {
@@ -47,12 +53,18 @@ export function SupportPage() {
   }, [threads, selectedUserId])
 
   // Fetch messages for selected thread
-  const { data: messages = [], isLoading: messagesLoading } = useQuery({
+  const { data: rawMessages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ["concierge-thread", selectedUserId],
     queryFn: () => (selectedUserId ? apiClient.getConciergeThread(selectedUserId) : []),
     enabled: !!selectedUserId,
     refetchInterval: 5000,
   })
+
+  const messages: ConciergeMessage[] = Array.isArray(rawMessages)
+    ? rawMessages
+    : (rawMessages as any)?.messages && Array.isArray((rawMessages as any).messages)
+    ? (rawMessages as any).messages
+    : []
 
   // Scroll to bottom on new messages
   useEffect(() => {

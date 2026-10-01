@@ -127,7 +127,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pendingScansCount = queueStats?.pending || 0
   const urgentContractsCount = (stats?.urgency?.critical || 0) + (stats?.urgency?.high || 0)
   const pendingQuotesCount = stats?.pending_quotes || 0
-  const awaitingReplyCount = (conciergeThreads || []).filter((t: any) => t.awaiting_reply).length
+  const awaitingReplyCount = (Array.isArray(conciergeThreads) ? conciergeThreads : []).filter((t: any) => t?.awaiting_reply).length
 
   const navigationItems = navigation.map((item) => {
     if (item.name === "Bill Scans") {

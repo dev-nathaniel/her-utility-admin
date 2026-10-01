@@ -560,12 +560,20 @@ export const apiClient = {
   // Concierge Support Chat
   getConciergeThreads: async (): Promise<ConciergeThread[]> => {
     const response = await axiosInstance.get("/admin/concierge/threads")
-    return response.data || []
+    const data = response.data
+    if (Array.isArray(data)) return data
+    if (data && Array.isArray(data.threads)) return data.threads
+    if (data && Array.isArray(data.data)) return data.data
+    return []
   },
 
   getConciergeThread: async (userId: string): Promise<ConciergeMessage[]> => {
     const response = await axiosInstance.get(`/admin/concierge/threads/${userId}`)
-    return response.data || []
+    const data = response.data
+    if (Array.isArray(data)) return data
+    if (data && Array.isArray(data.messages)) return data.messages
+    if (data && Array.isArray(data.data)) return data.data
+    return []
   },
 
   replyConciergeThread: async (userId: string, body: string): Promise<any> => {
