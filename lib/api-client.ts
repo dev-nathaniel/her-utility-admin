@@ -577,7 +577,10 @@ export const apiClient = {
   },
 
   replyConciergeThread: async (userId: string, body: string): Promise<any> => {
-    const response = await axiosInstance.post(`/admin/concierge/threads/${userId}/reply`, { body })
+    const response = await axiosInstance.post(`/admin/concierge/threads/${userId}/reply`, {
+      reply: body,
+      body,
+    })
     return response.data
   },
 
@@ -718,3 +721,26 @@ export const apiClient = {
     return response.data
   },
 }
+
+export function extractErrorMessage(err: any, fallback = "An unexpected error occurred"): string {
+  const detail = err?.response?.data?.detail ?? err?.response?.data?.message ?? err?.message
+  if (!detail) return fallback
+  if (typeof detail === "string") return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item: any) => {
+        if (typeof item === "string") return item
+        if (item?.msg) {
+          const field = Array.isArray(item.loc) ? item.loc.filter((p: any) => p !== "body").join(".") : ""
+          return field ? `${field}: ${item.msg}` : item.msg
+        }
+        return JSON.stringify(item)
+      })
+      .join(", ")
+  }
+  if (typeof detail === "object") {
+    return detail.msg || detail.message || JSON.stringify(detail)
+  }
+  return String(detail)
+}
+

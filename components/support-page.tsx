@@ -22,7 +22,7 @@ import {
   Inbox,
 } from "lucide-react"
 import Link from "next/link"
-import { apiClient, type ConciergeThread, type ConciergeMessage } from "@/lib/api-client"
+import { apiClient, extractErrorMessage, type ConciergeThread, type ConciergeMessage } from "@/lib/api-client"
 import { toast } from "sonner"
 
 export function SupportPage() {
@@ -84,7 +84,7 @@ export function SupportPage() {
       queryClient.invalidateQueries({ queryKey: ["concierge-threads"] })
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail || "Failed to send reply")
+      toast.error(extractErrorMessage(err, "Failed to send reply"))
     },
   })
 
