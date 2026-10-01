@@ -41,10 +41,12 @@ export function BusinessesPage() {
 
   const filteredCompanies = companies.filter((biz: any) => {
     const q = searchQuery.toLowerCase()
+    const matchesBizNames = (biz.business_names || []).some((name: string) => name.toLowerCase().includes(q))
     const matchesQuery =
       (biz.company_name || biz.name || "").toLowerCase().includes(q) ||
       (biz.email || "").toLowerCase().includes(q) ||
-      (biz.full_name || "").toLowerCase().includes(q)
+      (biz.full_name || "").toLowerCase().includes(q) ||
+      matchesBizNames
     const matchesStatus = statusFilter === "all" || (biz.pipeline_status || "new_lead") === statusFilter
     return matchesQuery && matchesStatus
   })
@@ -84,19 +86,35 @@ export function BusinessesPage() {
       key: "company_name",
       label: "Company / Account",
       sortable: true,
-      render: (biz) => (
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-              {(biz.company_name || biz.name || "C").substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <div>
-            <p className="font-semibold text-sm leading-snug">{biz.company_name || biz.name}</p>
-            <p className="text-xs text-muted-foreground">{biz.email}</p>
+      render: (biz) => {
+        const secondaryBiz = (biz.businesses || []).filter((b: any) => !b.is_primary)
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar className="h-9 w-9">
+              <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                {(biz.company_name || biz.name || "C").substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-sm leading-snug">{biz.company_name || biz.name}</p>
+                {biz.is_admin && (
+                  <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4">Broker Account</Badge>
+                )}
+                {biz.is_multi_business && (
+                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 border-primary/40 text-primary">Multi-company ({biz.business_count || biz.businesses?.length})</Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">{biz.email}</p>
+              {secondaryBiz.length > 0 && (
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Also includes: <span className="font-medium text-foreground">{secondaryBiz.map((b: any) => b.company_name).join(", ")}</span>
+                </p>
+              )}
+            </div>
           </div>
-        </div>
-      ),
+        )
+      },
     },
     {
       key: "pipeline_status",

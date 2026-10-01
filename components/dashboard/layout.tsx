@@ -21,6 +21,7 @@ import {
   Mail,
   Newspaper,
   UserCog,
+  FolderArchive,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -56,9 +57,10 @@ const navigation: navigationType[] = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Companies", href: "/dashboard/businesses", icon: Building2 },
   { name: "Users", href: "/dashboard/users", icon: Users },
+  { name: "Quotes & Tracker", href: "/dashboard/quotes", icon: FileText },
+  { name: "Document Centre", href: "/dashboard/documents", icon: FolderArchive },
   { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap },
   { name: "Bill Scans", href: "/dashboard/scans", icon: FileCheck },
-  { name: "Quote Enquiries", href: "/dashboard/quotes", icon: FileText },
   { name: "Support (Concierge)", href: "/dashboard/support", icon: MessagesSquare },
   { name: "Alerts & Activity", href: "/dashboard/activity-log", icon: Activity },
 

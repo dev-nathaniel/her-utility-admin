@@ -82,8 +82,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginMutation = useMutation({
     mutationFn: apiClient.login,
     onError: (error: unknown) => {
-      const err = error as { response?: { data?: { detail?: string; message?: string } } }
-      toast.error(err.response?.data?.detail || err.response?.data?.message || "Login failed")
+      const err = error as { message?: string; response?: { data?: { detail?: string; message?: string } } }
+      const detail = err.response?.data?.detail || err.response?.data?.message
+      if (detail) {
+        toast.error(detail)
+      } else if (err.message?.includes("Network Error") || !err.response) {
+        toast.error(`Cannot connect to backend server (${err.message || "Network Error"}). Please verify the backend is running.`)
+      } else {
+        toast.error("Login failed. Please check your credentials and try again.")
+      }
     },
   })
 

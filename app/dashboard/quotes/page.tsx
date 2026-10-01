@@ -1,5 +1,11 @@
+import { Suspense } from "react"
 import { QuotesPage } from "@/components/quotes-page"
 
 export default function Page() {
-  return <QuotesPage />
+  return (
+    <Suspense fallback={<div className="flex h-96 items-center justify-center text-sm text-muted-foreground"><div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />Loading quotes...</div>}>
+      <QuotesPage />
+    </Suspense>
+  )
 }
+

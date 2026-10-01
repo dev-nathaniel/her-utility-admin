@@ -138,6 +138,88 @@ export interface QuoteData {
   user_full_name?: string
 }
 
+export interface DocumentData {
+  id: string
+  _id?: string
+  document_name: string
+  document_type: string
+  user_id: string
+  business_id?: string
+  property_id?: string
+  site_name?: string
+  site_address?: string
+  utility_type?: string
+  supplier_name?: string
+  contract_id?: string
+  quote_id?: string
+  storage_path: string
+  file_size_bytes?: number
+  content_type?: string
+  status: string
+  expiry_date?: string
+  signature_date?: string
+  is_customer_visible: boolean
+  uploaded_by?: string
+  uploaded_by_user_id?: string
+  notes?: string
+  loa_metadata?: {
+    signatory_name?: string
+    signatory_email?: string
+    authority_scope?: string
+    utilities_covered?: string[]
+    sites_covered?: string[]
+  }
+  user_email?: string
+  user_company?: string
+  user_full_name?: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface QuoteTrackerData {
+  id: string
+  _id?: string
+  quote_reference: string
+  user_id: string
+  business_id?: string
+  business_name: string
+  contact_name: string
+  contact_email: string
+  contact_phone: string
+  utility_type: string
+  property_id?: string
+  site_reference?: string
+  quote_created_at: string
+  quote_sent_at?: string
+  quote_expires_at?: string
+  assigned_adviser_id: string
+  assigned_adviser_name: string
+  status: string
+  status_label?: string
+  is_overdue?: boolean
+  overdue_message?: string
+  next_action_at?: string
+  follow_up_attempt_count: number
+  follow_up_history?: Array<{
+    id: string
+    date: string
+    adviser_id: string
+    adviser_name?: string
+    outcome: string
+    notes?: string
+    next_action_at?: string
+  }>
+  last_contact_outcome?: string
+  final_outcome?: string
+  lost_reason?: string
+  linked_quote_doc_id?: string
+  linked_loa_doc_id?: string
+  linked_contract_id?: string
+  adviser_notes?: string
+  created_at: string
+  updated_at?: string
+}
+
 export interface ConciergeThread {
   user_id: string
   email?: string
@@ -218,7 +300,7 @@ export interface AlertData {
 
 export const axiosInstance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api",
-  timeout: 15000,
+  timeout: 45000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -528,6 +610,103 @@ export const apiClient = {
   // Global Search
   globalSearch: async (query: string): Promise<any> => {
     const response = await axiosInstance.get(`/admin/search?q=${encodeURIComponent(query)}`)
+    return response.data
+  },
+
+  // Document Centre
+  getDocuments: async (params?: { user_id?: string; business_id?: string; document_type?: string; status?: string; search?: string }): Promise<DocumentData[]> => {
+    const p = new URLSearchParams()
+    if (params?.user_id) p.append("user_id", params.user_id)
+    if (params?.business_id) p.append("business_id", params.business_id)
+    if (params?.document_type) p.append("document_type", params.document_type)
+    if (params?.status) p.append("status", params.status)
+    if (params?.search) p.append("search", params.search)
+    const qs = p.toString() ? `?${p.toString()}` : ""
+    const response = await axiosInstance.get(`/admin/documents${qs}`)
+    return (response.data || []).map((d: any) => ({ ...d, _id: d.id }))
+  },
+
+  getDocument: async (documentId: string): Promise<DocumentData> => {
+    const response = await axiosInstance.get(`/admin/documents/${documentId}`)
+    return response.data
+  },
+
+  uploadDocument: async (formData: FormData): Promise<any> => {
+    const response = await axiosInstance.post("/admin/documents/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    })
+    return response.data
+  },
+
+  updateDocument: async (documentId: string, data: Partial<DocumentData>): Promise<any> => {
+    const response = await axiosInstance.put(`/admin/documents/${documentId}`, data)
+    return response.data
+  },
+
+  deleteDocument: async (documentId: string): Promise<any> => {
+    const response = await axiosInstance.delete(`/admin/documents/${documentId}`)
+    return response.data
+  },
+
+  getDocumentDownloadUrl: async (documentId: string, action: "view" | "download" = "view"): Promise<{ download_url: string; document_name: string }> => {
+    const response = await axiosInstance.get(`/documents/${documentId}/download-url?action=${action}`)
+    return response.data
+  },
+
+  // Quote Follow-Up Tracker
+  getQuoteTrackerList: async (params?: { status?: string; adviser_id?: string; user_id?: string; overdue_only?: boolean; search?: string }): Promise<QuoteTrackerData[]> => {
+    const p = new URLSearchParams()
+    if (params?.status) p.append("status", params.status)
+    if (params?.adviser_id) p.append("adviser_id", params.adviser_id)
+    if (params?.user_id) p.append("user_id", params.user_id)
+    if (params?.overdue_only) p.append("overdue_only", "true")
+    if (params?.search) p.append("search", params.search)
+    const qs = p.toString() ? `?${p.toString()}` : ""
+    const response = await axiosInstance.get(`/admin/quote-tracker${qs}`)
+    return (response.data || []).map((q: any) => ({ ...q, _id: q.id }))
+  },
+
+  getQuoteTrackerKpis: async (): Promise<{
+    total: number
+    follow_up_due: number
+    waiting_response: number
+    considering: number
+    callback_requested: number
+    paperwork_sent: number
+    won: number
+    lost: number
+  }> => {
+    const response = await axiosInstance.get("/admin/quote-tracker/kpi")
+    return response.data
+  },
+
+  getQuoteTrackerDetail: async (quoteId: string): Promise<{
+    quote: QuoteTrackerData
+    linked_quote_doc?: DocumentData | null
+    linked_loa_doc?: DocumentData | null
+    linked_contract?: any | null
+  }> => {
+    const response = await axiosInstance.get(`/admin/quote-tracker/${quoteId}`)
+    return response.data
+  },
+
+  createQuoteTracker: async (data: any): Promise<any> => {
+    const response = await axiosInstance.post("/admin/quote-tracker", data)
+    return response.data
+  },
+
+  updateQuoteTracker: async (quoteId: string, data: Partial<QuoteTrackerData>): Promise<any> => {
+    const response = await axiosInstance.put(`/admin/quote-tracker/${quoteId}`, data)
+    return response.data
+  },
+
+  recordQuoteTrackerContact: async (quoteId: string, payload: {
+    outcome: string
+    notes?: string
+    next_action_at?: string
+    lost_reason?: string
+  }): Promise<any> => {
+    const response = await axiosInstance.post(`/admin/quote-tracker/${quoteId}/contact`, payload)
     return response.data
   },
 }
