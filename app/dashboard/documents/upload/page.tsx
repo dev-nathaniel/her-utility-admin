@@ -91,12 +91,16 @@ function UploadDocumentForm() {
     return d.toISOString().split("T")[0]
   })
 
-  // Step 3: Signature Zone & Fields (No presets - freely draggable and clickable)
+  // Step 3: Signature Zone & Fields (Draggable independently with 1:1 instantaneous cursor tracking)
   const [targetPage, setTargetPage] = useState<number>(1)
   const [detectedTotalPages, setDetectedTotalPages] = useState<number>(1)
   const [zone, setZone] = useState<SignatureZone>({ x: 0.30, y: 0.78, w: 0.40, h: 0.065 })
+  const [fullNameZone, setFullNameZone] = useState<SignatureZone>({ x: 0.30, y: 0.58, w: 0.40, h: 0.045 })
+  const [jobTitleZone, setJobTitleZone] = useState<SignatureZone>({ x: 0.30, y: 0.64, w: 0.40, h: 0.045 })
+  const [emailZone, setEmailZone] = useState<SignatureZone>({ x: 0.30, y: 0.70, w: 0.40, h: 0.045 })
+  const [dateZone, setDateZone] = useState<SignatureZone>({ x: 0.30, y: 0.86, w: 0.38, h: 0.045 })
   const [zoomScale, setZoomScale] = useState<number>(1.0)
-  const [isDragging, setIsDragging] = useState(false)
+  const [activeDragField, setActiveDragField] = useState<string | null>(null)
   const previewContainerRef = useRef<HTMLDivElement>(null)
 
   // Required Field Toggles (Only signature is mandatory by default; other fields require explicit admin toggle)
@@ -183,16 +187,21 @@ function UploadDocumentForm() {
     []
   )
 
-  // Mouse Drag on Signature Box
-  const handleBoxMouseDown = (e: React.MouseEvent) => {
+  // Mouse Drag on ANY Field (Zero lag, 1:1 instantaneous cursor tracking without CSS transition delay)
+  const handleFieldMouseDown = (
+    e: React.MouseEvent,
+    fieldName: "signature" | "fullName" | "jobTitle" | "email" | "date",
+    currentFieldZone: SignatureZone,
+    setFieldZone: React.Dispatch<React.SetStateAction<SignatureZone>>
+  ) => {
     e.stopPropagation()
     e.preventDefault()
-    setIsDragging(true)
+    setActiveDragField(fieldName)
 
     const startX = e.clientX
     const startY = e.clientY
-    const initX = zone.x
-    const initY = zone.y
+    const initX = currentFieldZone.x
+    const initY = currentFieldZone.y
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       if (!previewContainerRef.current) return
@@ -200,10 +209,10 @@ function UploadDocumentForm() {
       const deltaX = (moveEvent.clientX - startX) / rect.width
       const deltaY = (moveEvent.clientY - startY) / rect.height
 
-      const newX = Math.max(0.01, Math.min(0.99 - zone.w, initX + deltaX))
-      const newY = Math.max(0.01, Math.min(0.99 - zone.h, initY + deltaY))
+      const newX = Math.max(0.01, Math.min(0.99 - currentFieldZone.w, initX + deltaX))
+      const newY = Math.max(0.01, Math.min(0.99 - currentFieldZone.h, initY + deltaY))
 
-      setZone((prev) => ({
+      setFieldZone((prev) => ({
         ...prev,
         x: Number(newX.toFixed(3)),
         y: Number(newY.toFixed(3)),
@@ -211,7 +220,7 @@ function UploadDocumentForm() {
     }
 
     const onMouseUp = () => {
-      setIsDragging(false)
+      setActiveDragField(null)
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("mouseup", onMouseUp)
     }
@@ -371,12 +380,7 @@ function UploadDocumentForm() {
             type: "full_name",
             label: "Confirm full name",
             required: true,
-            rect: {
-              x: zone.x,
-              y: Math.max(0.04, zone.y - 0.15),
-              w: zone.w,
-              h: 0.045,
-            },
+            rect: fullNameZone,
             prefill: recipientName || selectedBusiness.full_name || "",
           })
         }
@@ -388,12 +392,7 @@ function UploadDocumentForm() {
             type: "job_title",
             label: "Enter job title",
             required: true,
-            rect: {
-              x: zone.x,
-              y: Math.max(0.04, zone.y - 0.10),
-              w: zone.w,
-              h: 0.045,
-            },
+            rect: jobTitleZone,
             prefill: "Director",
           })
         }
@@ -405,12 +404,7 @@ function UploadDocumentForm() {
             type: "email",
             label: "Confirm email",
             required: true,
-            rect: {
-              x: zone.x,
-              y: Math.max(0.04, zone.y - 0.05),
-              w: zone.w,
-              h: 0.045,
-            },
+            rect: emailZone,
             prefill: recipientEmail || selectedBusiness.email || "",
           })
         }
@@ -433,19 +427,7 @@ function UploadDocumentForm() {
             type: "date_signed",
             label: "Date signed",
             required: true,
-            rect:
-              zone.y + zone.h + 0.055 <= 0.98
-                ? {
-                    x: zone.x,
-                    y: zone.y + zone.h + 0.015,
-                    w: Math.min(0.38, zone.w),
-                    h: 0.045,
-                  }
-                : {
-                    x: Math.max(0.05, zone.x - 0.36),
-                    w: 0.34,
-                    h: 0.045,
-                  },
+            rect: dateZone,
             readOnly: true,
           })
         }
@@ -1229,17 +1211,20 @@ function UploadDocumentForm() {
                     {/* Full Name Indicator */}
                     {reqFullName && (
                       <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "fullName", fullNameZone, setFullNameZone)}
                         style={{
                           position: "absolute",
-                          left: `${zone.x * 100}%`,
-                          top: `${Math.max(0.04, zone.y - 0.15) * 100}%`,
-                          width: `${zone.w * 100}%`,
-                          height: "4.5%",
-                          minHeight: "30px",
+                          left: `${fullNameZone.x * 100}%`,
+                          top: `${fullNameZone.y * 100}%`,
+                          width: `${fullNameZone.w * 100}%`,
+                          height: `${fullNameZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "fullName" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-amber-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-amber-500 bg-white hover:bg-amber-50/60 rounded-md px-2.5 flex items-center justify-between text-xs text-slate-950 select-none font-semibold shadow-md z-20 hover:border-amber-600 hover:shadow-lg"
+                        title="Drag to position Full Name anywhere on this page"
                       >
-                        <div className="flex items-center gap-1.5 truncate min-w-0">
+                        <div className="flex items-center gap-1.5 truncate min-w-0 pointer-events-none">
                           <div className="p-1 rounded bg-amber-100 text-amber-800 shrink-0">
                             <UserCheck className="h-3.5 w-3.5" />
                           </div>
@@ -1247,26 +1232,32 @@ function UploadDocumentForm() {
                             Full Name: <span className="text-amber-950 font-semibold">{recipientName || selectedBusiness?.full_name || selectedBusiness?.name || "Signer Name"}</span>
                           </span>
                         </div>
-                        <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-950 border border-amber-300 shrink-0 ml-1.5">
-                          Name
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0 ml-1.5 pointer-events-none">
+                          <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-950 border border-amber-300">
+                            Name
+                          </span>
+                          <Move className="h-3.5 w-3.5 text-amber-700 opacity-70" />
+                        </div>
                       </div>
                     )}
 
                     {/* Job Title Indicator */}
                     {reqJobTitle && (
                       <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone)}
                         style={{
                           position: "absolute",
-                          left: `${zone.x * 100}%`,
-                          top: `${Math.max(0.04, zone.y - 0.10) * 100}%`,
-                          width: `${zone.w * 100}%`,
-                          height: "4.5%",
-                          minHeight: "30px",
+                          left: `${jobTitleZone.x * 100}%`,
+                          top: `${jobTitleZone.y * 100}%`,
+                          width: `${jobTitleZone.w * 100}%`,
+                          height: `${jobTitleZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "jobTitle" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-indigo-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-indigo-500 bg-white hover:bg-indigo-50/60 rounded-md px-2.5 flex items-center justify-between text-xs text-slate-950 select-none font-semibold shadow-md z-20 hover:border-indigo-600 hover:shadow-lg"
+                        title="Drag to position Job Title anywhere on this page"
                       >
-                        <div className="flex items-center gap-1.5 truncate min-w-0">
+                        <div className="flex items-center gap-1.5 truncate min-w-0 pointer-events-none">
                           <div className="p-1 rounded bg-indigo-100 text-indigo-800 shrink-0">
                             <Briefcase className="h-3.5 w-3.5" />
                           </div>
@@ -1274,26 +1265,32 @@ function UploadDocumentForm() {
                             Job Title: <span className="text-indigo-950 font-semibold">Director</span>
                           </span>
                         </div>
-                        <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-950 border border-indigo-300 shrink-0 ml-1.5">
-                          Role
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0 ml-1.5 pointer-events-none">
+                          <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-950 border border-indigo-300">
+                            Role
+                          </span>
+                          <Move className="h-3.5 w-3.5 text-indigo-700 opacity-70" />
+                        </div>
                       </div>
                     )}
 
                     {/* Email Indicator */}
                     {reqEmail && (
                       <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "email", emailZone, setEmailZone)}
                         style={{
                           position: "absolute",
-                          left: `${zone.x * 100}%`,
-                          top: `${Math.max(0.04, zone.y - 0.05) * 100}%`,
-                          width: `${zone.w * 100}%`,
-                          height: "4.5%",
-                          minHeight: "30px",
+                          left: `${emailZone.x * 100}%`,
+                          top: `${emailZone.y * 100}%`,
+                          width: `${emailZone.w * 100}%`,
+                          height: `${emailZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "email" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-emerald-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-emerald-500 bg-white hover:bg-emerald-50/60 rounded-md px-2.5 flex items-center justify-between text-xs text-slate-950 select-none font-semibold shadow-md z-20 hover:border-emerald-600 hover:shadow-lg"
+                        title="Drag to position Email anywhere on this page"
                       >
-                        <div className="flex items-center gap-1.5 truncate min-w-0">
+                        <div className="flex items-center gap-1.5 truncate min-w-0 pointer-events-none">
                           <div className="p-1 rounded bg-emerald-100 text-emerald-800 shrink-0">
                             <Mail className="h-3.5 w-3.5" />
                           </div>
@@ -1301,15 +1298,18 @@ function UploadDocumentForm() {
                             Email: <span className="text-emerald-950 font-semibold">{recipientEmail || selectedBusiness?.email || "signer@email.com"}</span>
                           </span>
                         </div>
-                        <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 shrink-0 ml-1.5">
-                          Email
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0 ml-1.5 pointer-events-none">
+                          <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300">
+                            Email
+                          </span>
+                          <Move className="h-3.5 w-3.5 text-emerald-700 opacity-70" />
+                        </div>
                       </div>
                     )}
 
-                    {/* Draggable & Clickable Signature Box */}
+                    {/* Draggable Signature Box (Instant 1:1 mouse tracking with zero transition lag) */}
                     <div
-                      onMouseDown={handleBoxMouseDown}
+                      onMouseDown={(e) => handleFieldMouseDown(e, "signature", zone, setZone)}
                       style={{
                         position: "absolute",
                         left: `${zone.x * 100}%`,
@@ -1317,9 +1317,9 @@ function UploadDocumentForm() {
                         width: `${zone.w * 100}%`,
                         height: `${zone.h * 100}%`,
                         minHeight: "44px",
-                        cursor: isDragging ? "grabbing" : "grab",
+                        cursor: activeDragField === "signature" ? "grabbing" : "grab",
                       }}
-                      className="border-2 border-blue-600 bg-white hover:bg-blue-50/50 rounded-lg flex items-center justify-between px-3 py-1.5 shadow-xl select-none transition-all hover:border-blue-700 z-30"
+                      className="border-2 border-blue-600 bg-white hover:bg-blue-50/60 rounded-lg flex items-center justify-between px-3 py-1.5 shadow-xl select-none hover:border-blue-700 hover:shadow-2xl z-30"
                       title="Drag to reposition or click anywhere on the page"
                     >
                       <div className="flex items-center gap-2 pointer-events-none truncate min-w-0">
@@ -1335,28 +1335,31 @@ function UploadDocumentForm() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <div className="flex items-center gap-1.5 shrink-0 ml-2 pointer-events-none">
                         <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
                           Mandatory
                         </span>
-                        <Move className="h-4 w-4 text-blue-600 shrink-0 pointer-events-none" />
+                        <Move className="h-4 w-4 text-blue-600 shrink-0" />
                       </div>
                     </div>
 
                     {/* Date Signed Indicator */}
                     {reqDate && (
                       <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "date", dateZone, setDateZone)}
                         style={{
                           position: "absolute",
-                          left: `${zone.x * 100}%`,
-                          top: `${Math.min(0.94, zone.y + zone.h + 0.015) * 100}%`,
-                          width: `${Math.min(0.38, zone.w) * 100}%`,
-                          height: "4.5%",
-                          minHeight: "30px",
+                          left: `${dateZone.x * 100}%`,
+                          top: `${dateZone.y * 100}%`,
+                          width: `${dateZone.w * 100}%`,
+                          height: `${dateZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "date" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-sky-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-sky-500 bg-white hover:bg-sky-50/60 rounded-md px-2.5 flex items-center justify-between text-xs text-slate-950 select-none font-semibold shadow-md z-20 hover:border-sky-600 hover:shadow-lg"
+                        title="Drag to position Date Signed anywhere on this page"
                       >
-                        <div className="flex items-center gap-1.5 truncate min-w-0">
+                        <div className="flex items-center gap-1.5 truncate min-w-0 pointer-events-none">
                           <div className="p-1 rounded bg-sky-100 text-sky-800 shrink-0">
                             <Calendar className="h-3.5 w-3.5" />
                           </div>
@@ -1364,9 +1367,12 @@ function UploadDocumentForm() {
                             Date: <span className="text-sky-950 font-semibold">DD/MM/YYYY</span>
                           </span>
                         </div>
-                        <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-100 text-sky-950 border border-sky-300 shrink-0 ml-1.5">
-                          Date
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0 ml-1.5 pointer-events-none">
+                          <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-100 text-sky-950 border border-sky-300">
+                            Date
+                          </span>
+                          <Move className="h-3.5 w-3.5 text-sky-700 opacity-70" />
+                        </div>
                       </div>
                     )}
                   </PdfPageCanvas>
