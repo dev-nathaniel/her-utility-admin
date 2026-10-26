@@ -9,6 +9,7 @@ export interface PdfPageCanvasProps {
   fallbackImageUrl?: string | null
   pageNumber: number
   scale?: number
+  contentType?: string | null
   onLoadSuccess?: (info: { numPages: number; width: number; height: number }) => void
   onCanvasClick?: (coords: { x: number; y: number }) => void
   children?: React.ReactNode
@@ -57,6 +58,7 @@ export function PdfPageCanvas({
   fallbackImageUrl,
   pageNumber = 1,
   scale = 1.0,
+  contentType,
   onLoadSuccess,
   onCanvasClick,
   children,
@@ -77,32 +79,66 @@ export function PdfPageCanvas({
   // Track render task to cancel ongoing renders if pageNumber changes rapidly
   const renderTaskRef = useRef<any>(null)
 
-  // 1. Detect if the file is an image (PNG, JPG, JPEG)
+  // 1. Detect if the file or URL is an image (PNG, JPG, JPEG, WEBP)
   useEffect(() => {
-    if (!file) {
-      setIsImageFile(false)
-      setImageObjectUrl(null)
+    if (file) {
+      const isImg = file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(file.name)
+      if (isImg) {
+        const objUrl = URL.createObjectURL(file)
+        setIsImageFile(true)
+        setImageObjectUrl(objUrl)
+        setLoading(false)
+        setError(null)
+        if (typeof window !== "undefined") {
+          const img = new Image()
+          img.src = objUrl
+          img.onload = () => {
+            const aspect = img.naturalHeight / (img.naturalWidth || 1)
+            const h = Math.round(595 * aspect)
+            setPageSize({ width: 595, height: h })
+            onLoadSuccess?.({ numPages: 1, width: 595, height: h })
+          }
+        }
+        return () => {
+          URL.revokeObjectURL(objUrl)
+        }
+      }
+    }
+
+    const isUrlImg =
+      (contentType && contentType.startsWith("image/")) ||
+      (url && /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(url))
+
+    if (isUrlImg && url) {
+      setIsImageFile(true)
+      setImageObjectUrl(url)
+      setLoading(false)
+      setError(null)
+      if (typeof window !== "undefined") {
+        const img = new Image()
+        img.src = url
+        img.onload = () => {
+          const aspect = img.naturalHeight / (img.naturalWidth || 1)
+          const h = Math.round(595 * aspect)
+          setPageSize({ width: 595, height: h })
+          onLoadSuccess?.({ numPages: 1, width: 595, height: h })
+        }
+      }
       return
     }
 
-    const isImg =
-      file.type.startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(file.name)
-    setIsImageFile(isImg)
-
-    if (isImg) {
-      const objUrl = URL.createObjectURL(file)
-      setImageObjectUrl(objUrl)
-      setLoading(false)
-      onLoadSuccess?.({ numPages: 1, width: 595, height: 842 })
-      return () => {
-        URL.revokeObjectURL(objUrl)
-      }
-    }
-  }, [file, onLoadSuccess])
+    setIsImageFile(false)
+    setImageObjectUrl(null)
+  }, [file, url, contentType, onLoadSuccess])
 
   // 2. Load PDF Document from File or URL
   useEffect(() => {
-    if (isImageFile) return
+    const isImg =
+      (file && (file.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(file.name))) ||
+      (contentType && contentType.startsWith("image/")) ||
+      (url && /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(url))
+
+    if (isImg || isImageFile) return
     let isCancelled = false
 
     async function loadPdf() {

@@ -84,7 +84,7 @@ export default function PrepareDocumentPage() {
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const isInitializedRef = useRef(false)
 
-  // Initialize once per document
+  // Initialize and prefill existing configuration once per document
   useEffect(() => {
     if (!document || isInitializedRef.current) return
     isInitializedRef.current = true
@@ -93,23 +93,82 @@ export default function PrepareDocumentPage() {
       document.document_type?.includes("contract") ||
       document.document_name?.toLowerCase().includes("contract")
 
-    setTargetPage(isContract ? 2 : 1)
-    setZone(
-      isContract
-        ? { x: 0.30, y: 0.45, w: 0.45, h: 0.065 }
-        : { x: 0.30, y: 0.78, w: 0.40, h: 0.065 }
-    )
-    setRecipientName(document.user_full_name || "")
-    setRecipientEmail(document.user_email || "")
+    const existingSr = (document as any).signing_request
+    const existingZone = (document as any).signature_zone || existingSr?.signature_zone
+    const existingTargetPage = (document as any).target_page || existingSr?.target_page
+    const existingFields = existingSr?.fields || (document as any).fields || []
+
+    // 1. Prefill Target Page
+    if (existingTargetPage) {
+      setTargetPage(existingTargetPage)
+    } else {
+      setTargetPage(isContract ? 2 : 1)
+    }
+
+    // 2. Prefill Signature Zone
+    if (existingZone && typeof existingZone.x === "number") {
+      setZone(existingZone)
+    } else {
+      setZone(
+        isContract
+          ? { x: 0.30, y: 0.45, w: 0.45, h: 0.065 }
+          : { x: 0.30, y: 0.78, w: 0.40, h: 0.065 }
+      )
+    }
+
+    // 3. Prefill Signer & Instructions
+    setRecipientName(existingSr?.recipient_name || document.user_full_name || "")
+    setRecipientEmail(existingSr?.recipient_email || document.user_email || "")
     setInstructions(
-      isContract
+      existingSr?.instructions ||
+      (isContract
         ? "Please review the commercial supply schedule and sign in the designated execution deed on Page 2."
-        : "Please review and sign the Letter of Authority to authorise energy tenders."
+        : "Please review and sign the Letter of Authority to authorise energy tenders.")
     )
 
-    const d = new Date()
-    d.setDate(d.getDate() + 7)
-    setDueDate(d.toISOString().split("T")[0])
+    if (existingSr?.due_date) {
+      setDueDate(existingSr.due_date)
+    } else {
+      const d = new Date()
+      d.setDate(d.getDate() + 7)
+      setDueDate(d.toISOString().split("T")[0])
+    }
+
+    // 4. Prefill Field Toggles if previously set
+    if (Array.isArray(existingFields) && existingFields.length > 0) {
+      setReqFullName(existingFields.some((f: any) => f.type === "full_name" || f.id === "f_name"))
+      setReqJobTitle(existingFields.some((f: any) => f.type === "job_title" || f.id === "f_title"))
+      setReqEmail(existingFields.some((f: any) => f.type === "email" || f.id === "f_email"))
+      setReqDate(existingFields.some((f: any) => f.type === "date_signed" || f.id === "f_date"))
+      setReqTermsCheck(existingFields.some((f: any) => f.type === "acknowledgement" || f.id === "f_terms"))
+    }
+
+    // Also query dedicated signing request endpoint in case signing_request is stored separately
+    apiClient
+      .getSigningRequest(documentId)
+      .then((res) => {
+        const sr = res?.signing_request
+        if (sr) {
+          if (sr.signature_zone && typeof sr.signature_zone.x === "number") {
+            setZone(sr.signature_zone)
+          }
+          if (sr.target_page) setTargetPage(sr.target_page)
+          if (sr.recipient_name) setRecipientName(sr.recipient_name)
+          if (sr.recipient_email) setRecipientEmail(sr.recipient_email)
+          if (sr.instructions) setInstructions(sr.instructions)
+          if (sr.due_date) setDueDate(sr.due_date)
+          if (Array.isArray(sr.fields) && sr.fields.length > 0) {
+            setReqFullName(sr.fields.some((f: any) => f.type === "full_name" || f.id === "f_name"))
+            setReqJobTitle(sr.fields.some((f: any) => f.type === "job_title" || f.id === "f_title"))
+            setReqEmail(sr.fields.some((f: any) => f.type === "email" || f.id === "f_email"))
+            setReqDate(sr.fields.some((f: any) => f.type === "date_signed" || f.id === "f_date"))
+            setReqTermsCheck(sr.fields.some((f: any) => f.type === "acknowledgement" || f.id === "f_terms"))
+          }
+        }
+      })
+      .catch(() => {
+        // No previously dispatched signing request found
+      })
 
     // Fetch live presigned PDF URL for signature placement
     apiClient
@@ -677,12 +736,64 @@ export default function PrepareDocumentPage() {
                 url={livePdfUrl}
                 pageNumber={targetPage}
                 scale={zoomScale}
+                contentType={document.content_type}
                 onLoadSuccess={({ numPages }) => {
                   setDetectedTotalPages(numPages)
                   if (targetPage > numPages) setTargetPage(1)
                 }}
                 onCanvasClick={handleCanvasClick}
               >
+                {/* Full Name Indicator */}
+                {reqFullName && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${zone.x * 100}%`,
+                      top: `${Math.max(0.04, zone.y - 0.125) * 100}%`,
+                      width: `${zone.w * 100}%`,
+                      height: "3.4%",
+                    }}
+                    className="border border-dashed border-amber-500 bg-amber-500/15 rounded px-2 flex items-center justify-between text-[10px] text-amber-900 dark:text-amber-200 pointer-events-none select-none font-medium shadow-xs"
+                  >
+                    <span className="truncate">Full Name: {recipientName || document.user_full_name || "Signer Name"}</span>
+                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-amber-500 text-amber-700 dark:text-amber-300 shrink-0">Name</Badge>
+                  </div>
+                )}
+
+                {/* Job Title Indicator */}
+                {reqJobTitle && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${zone.x * 100}%`,
+                      top: `${Math.max(0.04, zone.y - 0.085) * 100}%`,
+                      width: `${zone.w * 100}%`,
+                      height: "3.4%",
+                    }}
+                    className="border border-dashed border-indigo-500 bg-indigo-500/15 rounded px-2 flex items-center justify-between text-[10px] text-indigo-900 dark:text-indigo-200 pointer-events-none select-none font-medium shadow-xs"
+                  >
+                    <span className="truncate">Job Title / Role: Director</span>
+                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-indigo-500 text-indigo-700 dark:text-indigo-300 shrink-0">Role</Badge>
+                  </div>
+                )}
+
+                {/* Email Indicator */}
+                {reqEmail && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${zone.x * 100}%`,
+                      top: `${Math.max(0.04, zone.y - 0.045) * 100}%`,
+                      width: `${zone.w * 100}%`,
+                      height: "3.4%",
+                    }}
+                    className="border border-dashed border-emerald-500 bg-emerald-500/15 rounded px-2 flex items-center justify-between text-[10px] text-emerald-900 dark:text-emerald-200 pointer-events-none select-none font-medium shadow-xs"
+                  >
+                    <span className="truncate">Email: {recipientEmail || document.user_email || "signer@email.com"}</span>
+                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-emerald-500 text-emerald-700 dark:text-emerald-300 shrink-0">Email</Badge>
+                  </div>
+                )}
+
                 {/* Draggable & Clickable Signature Box */}
                 <div
                   onMouseDown={handleBoxMouseDown}
@@ -703,7 +814,7 @@ export default function PrepareDocumentPage() {
                     </div>
                     <div className="truncate">
                       <p className="text-[11px] font-bold text-primary-950 dark:text-primary-100 truncate leading-tight">
-                        Sign Here
+                        Sign Here (Signature Zone)
                       </p>
                       <p className="text-[9px] text-primary-800 dark:text-primary-200 truncate leading-tight">
                         {recipientName || "Customer"}
@@ -712,6 +823,23 @@ export default function PrepareDocumentPage() {
                   </div>
                   <Move className="h-3.5 w-3.5 text-primary opacity-70 shrink-0 pointer-events-none ml-1" />
                 </div>
+
+                {/* Date Signed Indicator */}
+                {reqDate && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `${zone.x * 100}%`,
+                      top: `${Math.min(0.94, zone.y + zone.h + 0.012) * 100}%`,
+                      width: `${Math.min(0.35, zone.w) * 100}%`,
+                      height: "3.4%",
+                    }}
+                    className="border border-dashed border-slate-500 bg-slate-500/15 rounded px-2 flex items-center justify-between text-[10px] text-slate-900 dark:text-slate-200 pointer-events-none select-none font-medium shadow-xs"
+                  >
+                    <span>Date: DD/MM/YYYY</span>
+                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-slate-500 text-slate-700 dark:text-slate-300 shrink-0">Timestamp</Badge>
+                  </div>
+                )}
               </PdfPageCanvas>
             </div>
           </div>

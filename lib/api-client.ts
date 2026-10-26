@@ -156,6 +156,7 @@ export interface DocumentData {
   contract_id?: string
   quote_id?: string
   storage_path: string
+  signed_storage_path?: string
   file_size_bytes?: number
   content_type?: string
   status: string
