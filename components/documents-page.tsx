@@ -150,20 +150,27 @@ export function DocumentsPage() {
     }
   }
 
+  const isDocArchived = (d: DocumentData) => {
+    return d.status === "superseded" || d.status === "archived"
+  }
+
   const isDocNeedingSignature = (d: DocumentData) => {
-    return (
-      d.status === "awaiting_signature" ||
-      d.document_type === "unsigned_loa" ||
-      (d.status !== "signed" && d.document_type === "signed_contract")
-    )
+    if (isDocArchived(d)) return false
+    if (d.status === "signed" || d.status === "completed" || !!d.signature_date || !!d.signed_storage_path) {
+      return false
+    }
+    return d.status === "awaiting_signature" || d.document_type === "unsigned_loa"
   }
 
   const isDocCompleted = (d: DocumentData) => {
-    return (d.status === "signed" || d.status === "completed" || d.document_type === "signed_loa") && !isDocArchived(d)
-  }
-
-  const isDocArchived = (d: DocumentData) => {
-    return d.status === "superseded" || d.status === "archived"
+    if (isDocArchived(d)) return false
+    return (
+      d.status === "signed" ||
+      d.status === "completed" ||
+      d.document_type === "signed_loa" ||
+      !!d.signature_date ||
+      !!d.signed_storage_path
+    )
   }
 
   const filteredDocs = documents.filter((d: DocumentData) => {
@@ -288,6 +295,18 @@ export function DocumentsPage() {
       sortable: true,
       className: "py-4 px-4 align-middle min-w-[160px]",
       render: (d) => {
+        if (isDocArchived(d)) {
+          const wasSigned = !!d.signature_date || !!d.signed_storage_path || d.document_type === "signed_contract"
+          return (
+            <Badge
+              variant="outline"
+              className="bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900/60 dark:text-slate-300 dark:border-slate-800 gap-1.5 font-medium text-xs py-1 px-2.5 shadow-none"
+            >
+              <Archive className="h-3 w-3 text-slate-500" />
+              {wasSigned ? "Archived (Signed)" : "Archived / Superseded"}
+            </Badge>
+          )
+        }
         if (isDocNeedingSignature(d)) {
           return (
             <Badge
