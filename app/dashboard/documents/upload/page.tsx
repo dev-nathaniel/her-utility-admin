@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -57,7 +57,7 @@ export interface SignatureZone {
   h: number
 }
 
-export default function UploadDocumentPage() {
+function UploadDocumentForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const queryClient = useQueryClient()
@@ -1507,5 +1507,20 @@ export default function UploadDocumentPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function UploadDocumentPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-96 items-center justify-center text-sm text-muted-foreground">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2" />
+          Loading document upload studio...
+        </div>
+      }
+    >
+      <UploadDocumentForm />
+    </Suspense>
   )
 }

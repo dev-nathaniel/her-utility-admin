@@ -30,7 +30,16 @@ export default function RootLayout({
             <ErrorBoundary>
               <AuthProvider>
                 <WebSocketProvider>
-                  <Suspense fallback={<div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>}>
+                  <Suspense
+                    fallback={
+                      <div className="flex min-h-screen items-center justify-center bg-background">
+                        <div className="text-center">
+                          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+                          <p className="mt-3 text-sm text-muted-foreground font-medium">Loading Price Buddy Admin...</p>
+                        </div>
+                      </div>
+                    }
+                  >
                     <SearchProvider>{children}</SearchProvider>
                   </Suspense>
                   <Toaster richColors position="top-right" />
