@@ -247,9 +247,9 @@ export default function PrepareDocumentPage() {
           required: true,
           rect: {
             x: zone.x,
-            y: Math.max(0.05, zone.y - 0.12),
+            y: Math.max(0.04, zone.y - 0.15),
             w: zone.w,
-            h: 0.038,
+            h: 0.045,
           },
           prefill: recipientName || document.user_full_name || "",
         })
@@ -264,9 +264,9 @@ export default function PrepareDocumentPage() {
           required: true,
           rect: {
             x: zone.x,
-            y: Math.max(0.05, zone.y - 0.08),
+            y: Math.max(0.04, zone.y - 0.10),
             w: zone.w,
-            h: 0.038,
+            h: 0.045,
           },
           prefill: "Director",
         })
@@ -281,9 +281,9 @@ export default function PrepareDocumentPage() {
           required: true,
           rect: {
             x: zone.x,
-            y: Math.max(0.05, zone.y - 0.04),
+            y: Math.max(0.04, zone.y - 0.05),
             w: zone.w,
-            h: 0.038,
+            h: 0.045,
           },
           prefill: recipientEmail || document.user_email || "",
         })
@@ -308,18 +308,17 @@ export default function PrepareDocumentPage() {
           label: "Date signed",
           required: true,
           rect:
-            zone.y + zone.h + 0.045 <= 0.98
+            zone.y + zone.h + 0.055 <= 0.98
               ? {
                   x: zone.x,
-                  y: zone.y + zone.h + 0.012,
-                  w: Math.min(0.35, zone.w),
-                  h: 0.038,
+                  y: zone.y + zone.h + 0.015,
+                  w: Math.min(0.38, zone.w),
+                  h: 0.045,
                 }
               : {
                   x: Math.max(0.05, zone.x - 0.36),
-                  y: zone.y,
-                  w: 0.32,
-                  h: 0.038,
+                  w: 0.34,
+                  h: 0.045,
                 },
           readOnly: true,
         })
@@ -749,9 +748,9 @@ export default function PrepareDocumentPage() {
                     style={{
                       position: "absolute",
                       left: `${zone.x * 100}%`,
-                      top: `${Math.max(0.04, zone.y - 0.125) * 100}%`,
+                      top: `${Math.max(0.04, zone.y - 0.15) * 100}%`,
                       width: `${zone.w * 100}%`,
-                      height: "3.4%",
+                      height: "4.5%",
                     }}
                     className="border border-dashed border-amber-500 bg-amber-500/15 rounded px-2 flex items-center justify-between text-[10px] text-amber-900 dark:text-amber-200 pointer-events-none select-none font-medium shadow-xs"
                   >
@@ -766,9 +765,9 @@ export default function PrepareDocumentPage() {
                     style={{
                       position: "absolute",
                       left: `${zone.x * 100}%`,
-                      top: `${Math.max(0.04, zone.y - 0.085) * 100}%`,
+                      top: `${Math.max(0.04, zone.y - 0.10) * 100}%`,
                       width: `${zone.w * 100}%`,
-                      height: "3.4%",
+                      height: "4.5%",
                     }}
                     className="border border-dashed border-indigo-500 bg-indigo-500/15 rounded px-2 flex items-center justify-between text-[10px] text-indigo-900 dark:text-indigo-200 pointer-events-none select-none font-medium shadow-xs"
                   >
@@ -783,9 +782,9 @@ export default function PrepareDocumentPage() {
                     style={{
                       position: "absolute",
                       left: `${zone.x * 100}%`,
-                      top: `${Math.max(0.04, zone.y - 0.045) * 100}%`,
+                      top: `${Math.max(0.04, zone.y - 0.05) * 100}%`,
                       width: `${zone.w * 100}%`,
-                      height: "3.4%",
+                      height: "4.5%",
                     }}
                     className="border border-dashed border-emerald-500 bg-emerald-500/15 rounded px-2 flex items-center justify-between text-[10px] text-emerald-900 dark:text-emerald-200 pointer-events-none select-none font-medium shadow-xs"
                   >
@@ -830,9 +829,9 @@ export default function PrepareDocumentPage() {
                     style={{
                       position: "absolute",
                       left: `${zone.x * 100}%`,
-                      top: `${Math.min(0.94, zone.y + zone.h + 0.012) * 100}%`,
+                      top: `${Math.min(0.94, zone.y + zone.h + 0.015) * 100}%`,
                       width: `${Math.min(0.35, zone.w) * 100}%`,
-                      height: "3.4%",
+                      height: "4.5%",
                     }}
                     className="border border-dashed border-slate-500 bg-slate-500/15 rounded px-2 flex items-center justify-between text-[10px] text-slate-900 dark:text-slate-200 pointer-events-none select-none font-medium shadow-xs"
                   >
