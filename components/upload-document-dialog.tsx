@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import {
@@ -24,13 +25,14 @@ import {
 } from "@/components/ui/select"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
-import { Upload, FileText, ShieldCheck, AlertCircle, Info } from "lucide-react"
+import { Upload, FileText, ShieldCheck, AlertCircle, Info, PenTool, CheckCircle2, X } from "lucide-react"
 
 interface UploadDocumentDialogProps {
   business: any
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess?: () => void
+  onUploadedForSignature?: (doc: any) => void
 }
 
 export function UploadDocumentDialog({
@@ -38,7 +40,9 @@ export function UploadDocumentDialog({
   open,
   onOpenChange,
   onSuccess,
+  onUploadedForSignature,
 }: UploadDocumentDialogProps) {
+  const router = useRouter()
   const queryClient = useQueryClient()
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [documentName, setDocumentName] = useState("")
@@ -48,7 +52,36 @@ export function UploadDocumentDialog({
   const [status, setStatus] = useState("current")
   const [expiryDate, setExpiryDate] = useState("")
   const [isCustomerVisible, setIsCustomerVisible] = useState(true)
+  const [requireSignature, setRequireSignature] = useState(false)
   const [notes, setNotes] = useState("")
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFilePicked = (f: File) => {
+    setSelectedFile(f)
+    const lower = f.name.toLowerCase()
+    if (!documentName) {
+      const cleanName = f.name
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[-_]/g, " ")
+        .replace(/\b\w/g, (l) => l.toUpperCase())
+      setDocumentName(cleanName)
+    }
+
+    // Auto-detect document category & suggest signature
+    if (lower.includes("contract") || lower.includes("agreement")) {
+      setDocumentType("contract")
+      setRequireSignature(true)
+      setStatus("awaiting_signature")
+    } else if (lower.includes("loa") || lower.includes("authority")) {
+      setDocumentType("unsigned_loa")
+      setRequireSignature(true)
+      setStatus("awaiting_signature")
+    } else if (lower.includes("bill") || lower.includes("invoice")) {
+      setDocumentType("bill")
+    } else if (lower.includes("quote")) {
+      setDocumentType("quote")
+    }
+  }
 
   // LOA specific fields
   const [loaStatus, setLoaStatus] = useState("active")
@@ -105,17 +138,27 @@ export function UploadDocumentDialog({
 
       return apiClient.uploadDocument(formData)
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       toast.success("Document uploaded to Cloudflare R2 and registered successfully")
       queryClient.invalidateQueries({ queryKey: ["company-documents"] })
       queryClient.invalidateQueries({ queryKey: ["documents"] })
       onOpenChange(false)
-      // Reset
+      const uploadedDoc = res?.document || {
+        id: res?.document_id || `doc_${Date.now()}`,
+        document_name: documentName.trim(),
+        document_type: documentType,
+        user_id: business?.user_id || business?.id,
+        user_company: business?.company_name || business?.name,
+        supplier_name: supplierName.trim(),
+      }
       setSelectedFile(null)
       setDocumentName("")
       setNotes("")
       setSupplierName("")
       onSuccess?.()
+      if (requireSignature) {
+        onUploadedForSignature?.(uploadedDoc)
+      }
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.detail || err?.message || "Failed to upload document")
@@ -135,33 +178,98 @@ export function UploadDocumentDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {/* Dedicated Full Page Option */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-primary/5 border border-primary/20 text-xs">
+          <span className="text-muted-foreground">Want multi-step DocuSign signing workflow?</span>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-primary font-semibold text-xs"
+            onClick={() => {
+              onOpenChange(false)
+              const bId = business?.id || business?._id
+              router.push(`/dashboard/documents/upload${bId ? `?business_id=${bId}` : ""}`)
+            }}
+          >
+            Open Full Page Studio →
+          </Button>
+        </div>
+
         <div className="space-y-4 py-2">
-          {/* File Picker */}
+          {/* Custom File Picker (No generic "Choose File" confusion) */}
           <div className="grid gap-1.5">
-            <Label className="text-xs font-semibold">Select File (PDF, DOCX, PNG) *</Label>
-            <Input
+            <Label className="text-xs font-semibold">Select Document File (PDF, DOCX, PNG) *</Label>
+            <input
+              ref={fileInputRef}
               type="file"
               accept=".pdf,.docx,.doc,.png,.jpg,.jpeg"
               onChange={(e) => {
                 const f = e.target.files?.[0]
-                if (f) {
-                  setSelectedFile(f)
-                  if (!documentName) {
-                    // Pre-fill clean document title from filename
-                    const cleanName = f.name
-                      .replace(/\.[^/.]+$/, "")
-                      .replace(/[-_]/g, " ")
-                      .replace(/\b\w/g, (l) => l.toUpperCase())
-                    setDocumentName(cleanName)
-                  }
-                }
+                if (f) handleFilePicked(f)
               }}
-              className="text-xs"
+              className="hidden"
             />
-            {selectedFile && (
-              <p className="text-[11px] text-muted-foreground">
-                Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-              </p>
+
+            {!selectedFile ? (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/60 hover:bg-muted/30 rounded-xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-2 group"
+              >
+                <div className="p-2.5 rounded-full bg-primary/10 text-primary group-hover:scale-105 transition">
+                  <Upload className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-foreground">Click to browse or drop file here</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Supports utility contracts, LOAs, bills &amp; quotes (PDF, DOCX, PNG up to 25MB)
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl border-2 border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-950/20 flex items-center justify-between gap-3 shadow-sm">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 shrink-0">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div className="truncate">
+                    <p className="font-bold text-xs text-foreground truncate">{selectedFile.name}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-emerald-700 dark:text-emerald-300 font-medium mt-0.5">
+                      <span className="flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        Attached &amp; ready
+                      </span>
+                      <span>•</span>
+                      <span>{(selectedFile.size / 1024).toFixed(1)} KB</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-7 text-xs px-2.5 font-medium"
+                  >
+                    Change File
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedFile(null)
+                      if (fileInputRef.current) fileInputRef.current.value = ""
+                    }}
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    title="Remove File"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -317,6 +425,25 @@ export function UploadDocumentDialog({
             <Switch
               checked={isCustomerVisible}
               onCheckedChange={setIsCustomerVisible}
+            />
+          </div>
+
+          {/* Require Customer Signature Switch */}
+          <div className="p-3 rounded-lg border bg-primary/5 border-primary/20 flex items-center justify-between">
+            <div className="space-y-0.5 pr-2">
+              <Label className="text-xs font-semibold block text-foreground flex items-center gap-1.5">
+                <PenTool className="h-3.5 w-3.5 text-primary" />
+                Configure Signature &amp; Send to Mobile App
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                {requireSignature
+                  ? "Prompt to pick target page & signature zone on this document right after upload."
+                  : "Upload without configuring customer digital signature."}
+              </p>
+            </div>
+            <Switch
+              checked={requireSignature}
+              onCheckedChange={setRequireSignature}
             />
           </div>
 
