@@ -27,6 +27,10 @@ import {
   Smartphone,
   Move,
   Lock,
+  UserCheck,
+  Briefcase,
+  Mail,
+  Calendar,
 } from "lucide-react"
 
 export interface SignatureZone {
@@ -751,11 +755,21 @@ export default function PrepareDocumentPage() {
                       top: `${Math.max(0.04, zone.y - 0.15) * 100}%`,
                       width: `${zone.w * 100}%`,
                       height: "4.5%",
+                      minHeight: "30px",
                     }}
-                    className="border border-dashed border-amber-500 bg-amber-500/15 rounded px-2 flex items-center justify-between text-[10px] text-amber-900 dark:text-amber-200 pointer-events-none select-none font-medium shadow-xs"
+                    className="border-2 border-dashed border-amber-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
                   >
-                    <span className="truncate">Full Name: {recipientName || document.user_full_name || "Signer Name"}</span>
-                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-amber-500 text-amber-700 dark:text-amber-300 shrink-0">Name</Badge>
+                    <div className="flex items-center gap-1.5 truncate min-w-0">
+                      <div className="p-1 rounded bg-amber-100 text-amber-800 shrink-0">
+                        <UserCheck className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="truncate text-xs font-bold text-slate-950">
+                        Full Name: <span className="text-amber-950 font-semibold">{recipientName || document.user_full_name || "Signer Name"}</span>
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-950 border border-amber-300 shrink-0 ml-1.5">
+                      Name
+                    </span>
                   </div>
                 )}
 
@@ -768,11 +782,21 @@ export default function PrepareDocumentPage() {
                       top: `${Math.max(0.04, zone.y - 0.10) * 100}%`,
                       width: `${zone.w * 100}%`,
                       height: "4.5%",
+                      minHeight: "30px",
                     }}
-                    className="border border-dashed border-indigo-500 bg-indigo-500/15 rounded px-2 flex items-center justify-between text-[10px] text-indigo-900 dark:text-indigo-200 pointer-events-none select-none font-medium shadow-xs"
+                    className="border-2 border-dashed border-indigo-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
                   >
-                    <span className="truncate">Job Title / Role: Director</span>
-                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-indigo-500 text-indigo-700 dark:text-indigo-300 shrink-0">Role</Badge>
+                    <div className="flex items-center gap-1.5 truncate min-w-0">
+                      <div className="p-1 rounded bg-indigo-100 text-indigo-800 shrink-0">
+                        <Briefcase className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="truncate text-xs font-bold text-slate-950">
+                        Job Title: <span className="text-indigo-950 font-semibold">Director</span>
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-950 border border-indigo-300 shrink-0 ml-1.5">
+                      Role
+                    </span>
                   </div>
                 )}
 
@@ -785,11 +809,21 @@ export default function PrepareDocumentPage() {
                       top: `${Math.max(0.04, zone.y - 0.05) * 100}%`,
                       width: `${zone.w * 100}%`,
                       height: "4.5%",
+                      minHeight: "30px",
                     }}
-                    className="border border-dashed border-emerald-500 bg-emerald-500/15 rounded px-2 flex items-center justify-between text-[10px] text-emerald-900 dark:text-emerald-200 pointer-events-none select-none font-medium shadow-xs"
+                    className="border-2 border-dashed border-emerald-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
                   >
-                    <span className="truncate">Email: {recipientEmail || document.user_email || "signer@email.com"}</span>
-                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-emerald-500 text-emerald-700 dark:text-emerald-300 shrink-0">Email</Badge>
+                    <div className="flex items-center gap-1.5 truncate min-w-0">
+                      <div className="p-1 rounded bg-emerald-100 text-emerald-800 shrink-0">
+                        <Mail className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="truncate text-xs font-bold text-slate-950">
+                        Email: <span className="text-emerald-950 font-semibold">{recipientEmail || document.user_email || "signer@email.com"}</span>
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-950 border border-emerald-300 shrink-0 ml-1.5">
+                      Email
+                    </span>
                   </div>
                 )}
 
@@ -802,25 +836,31 @@ export default function PrepareDocumentPage() {
                     top: `${zone.y * 100}%`,
                     width: `${zone.w * 100}%`,
                     height: `${zone.h * 100}%`,
+                    minHeight: "44px",
                     cursor: isDragging ? "grabbing" : "grab",
                   }}
-                  className="border-2 border-primary bg-primary/25 rounded-md flex items-center justify-between px-2 py-1 shadow-lg backdrop-blur-xs select-none transition-shadow hover:shadow-xl hover:border-primary/90"
+                  className="border-2 border-blue-600 bg-white hover:bg-blue-50/50 rounded-lg flex items-center justify-between px-3 py-1.5 shadow-xl select-none transition-all hover:border-blue-700 z-30"
                   title="Drag to reposition or click anywhere on the page"
                 >
-                  <div className="flex items-center gap-1.5 pointer-events-none truncate">
-                    <div className="p-1 rounded bg-primary text-primary-foreground">
-                      <PenTool className="h-3 w-3" />
+                  <div className="flex items-center gap-2 pointer-events-none truncate min-w-0">
+                    <div className="p-1.5 rounded-md bg-blue-600 text-white shrink-0 shadow-sm">
+                      <PenTool className="h-4 w-4" />
                     </div>
-                    <div className="truncate">
-                      <p className="text-[11px] font-bold text-primary-950 dark:text-primary-100 truncate leading-tight">
+                    <div className="truncate min-w-0">
+                      <p className="text-xs font-black text-blue-950 truncate leading-tight uppercase tracking-tight">
                         Sign Here (Signature Zone)
                       </p>
-                      <p className="text-[9px] text-primary-800 dark:text-primary-200 truncate leading-tight">
-                        {recipientName || "Customer"}
+                      <p className="text-[11px] font-bold text-slate-700 truncate leading-tight">
+                        {recipientName || "Customer Signer"}
                       </p>
                     </div>
                   </div>
-                  <Move className="h-3.5 w-3.5 text-primary opacity-70 shrink-0 pointer-events-none ml-1" />
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-200">
+                      Mandatory
+                    </span>
+                    <Move className="h-4 w-4 text-blue-600 shrink-0 pointer-events-none" />
+                  </div>
                 </div>
 
                 {/* Date Signed Indicator */}
@@ -830,13 +870,23 @@ export default function PrepareDocumentPage() {
                       position: "absolute",
                       left: `${zone.x * 100}%`,
                       top: `${Math.min(0.94, zone.y + zone.h + 0.015) * 100}%`,
-                      width: `${Math.min(0.35, zone.w) * 100}%`,
+                      width: `${Math.min(0.38, zone.w) * 100}%`,
                       height: "4.5%",
+                      minHeight: "30px",
                     }}
-                    className="border border-dashed border-slate-500 bg-slate-500/15 rounded px-2 flex items-center justify-between text-[10px] text-slate-900 dark:text-slate-200 pointer-events-none select-none font-medium shadow-xs"
+                    className="border-2 border-dashed border-sky-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 pointer-events-none select-none font-semibold shadow-md z-20"
                   >
-                    <span>Date: DD/MM/YYYY</span>
-                    <Badge variant="outline" className="text-[9px] py-0 px-1 border-slate-500 text-slate-700 dark:text-slate-300 shrink-0">Timestamp</Badge>
+                    <div className="flex items-center gap-1.5 truncate min-w-0">
+                      <div className="p-1 rounded bg-sky-100 text-sky-800 shrink-0">
+                        <Calendar className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="truncate text-xs font-bold text-slate-950">
+                        Date: <span className="text-sky-950 font-semibold">DD/MM/YYYY</span>
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-100 text-sky-950 border border-sky-300 shrink-0 ml-1.5">
+                      Date
+                    </span>
                   </div>
                 )}
               </PdfPageCanvas>
