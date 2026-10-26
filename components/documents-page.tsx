@@ -56,7 +56,7 @@ export function DocumentsPage() {
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
-  const [activeTab, setActiveTab] = useState<"all" | "needs_signature" | "completed" | "visible" | "internal" | "archived">("all")
+  const [activeTab, setActiveTab] = useState<"all" | "needs_signature" | "completed" | "archived">("all")
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [selectedCompanyForUpload, setSelectedCompanyForUpload] = useState<any>(null)
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false)
@@ -188,11 +188,7 @@ export function DocumentsPage() {
           ? isDocNeedingSignature(d) && !isArchived
           : activeTab === "completed"
             ? isDocCompleted(d) && !isArchived
-            : activeTab === "visible"
-              ? d.is_customer_visible === true && !isArchived
-              : activeTab === "internal"
-                ? d.is_customer_visible === false && !isArchived
-                : isArchived
+            : isArchived
 
     return matchesSearch && matchesType && matchesTab
   })
@@ -526,12 +522,10 @@ export function DocumentsPage() {
         {/* Quick Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
-            { id: "all", label: "Active Documents", count: totalActiveDocs },
+            { id: "all", label: "All", count: totalActiveDocs },
             { id: "needs_signature", label: "Needs Signature", count: needsSignatureCount },
             { id: "completed", label: "Completed", count: completedCount },
-            { id: "visible", label: "Customer-Visible", count: customerVisibleCount },
-            { id: "internal", label: "Internal Only", count: internalCount },
-            { id: "archived", label: "Archived / Superseded", count: archivedCount },
+            { id: "archived", label: "Archived", count: archivedCount },
           ].map((tab) => (
             <button
               key={tab.id}
