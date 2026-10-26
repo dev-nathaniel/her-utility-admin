@@ -198,6 +198,7 @@ export function DocumentsPage() {
   })
 
   // KPI Metrics (Active vs Archived)
+  const totalDocs = documents.length
   const activeDocs = documents.filter((d: DocumentData) => !isDocArchived(d))
   const totalActiveDocs = activeDocs.length
   const needsSignatureCount = activeDocs.filter(isDocNeedingSignature).length
