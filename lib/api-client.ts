@@ -26,6 +26,9 @@ export interface UserData {
 export interface AuthResponse {
   message: string
   token: string
+  access_token?: string
+  refresh_token?: string
+  expires_in?: number
   user: UserData
 }
 
@@ -332,14 +335,96 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error),
 )
 
-// Global response error handler
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void
+  reject: (reason?: unknown) => void
+}> = []
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+// Global response error handler with refresh token rotation
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
+
+    if (
+      error.response &&
+      error.response.status === 401 &&
+      originalRequest &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes("/auth/refresh") &&
+      !originalRequest.url?.includes("/login")
+    ) {
+      if (typeof window !== "undefined") {
+        const refreshToken = localStorage.getItem("refresh-token")
+        if (refreshToken) {
+          if (isRefreshing) {
+            return new Promise((resolve, reject) => {
+              failedQueue.push({ resolve, reject })
+            })
+              .then((token) => {
+                originalRequest.headers["Authorization"] = `Bearer ${token}`
+                return axiosInstance(originalRequest)
+              })
+              .catch((err) => Promise.reject(err))
+          }
+
+          originalRequest._retry = true
+          isRefreshing = true
+
+          try {
+            const refreshUrl = `${axiosInstance.defaults.baseURL || ""}/auth/refresh`
+            const res = await axios.post(refreshUrl, { refresh_token: refreshToken })
+            const newAccessToken = res.data.access_token || res.data.token
+            const newRefreshToken = res.data.refresh_token
+
+            if (newAccessToken) {
+              document.cookie = `auth-token=${newAccessToken}; path=/; max-age=86400; SameSite=Lax`
+              localStorage.setItem("auth-token", newAccessToken)
+              axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${newAccessToken}`
+              originalRequest.headers["Authorization"] = `Bearer ${newAccessToken}`
+            }
+            if (newRefreshToken) {
+              document.cookie = `refresh-token=${newRefreshToken}; path=/; max-age=604800; SameSite=Lax`
+              localStorage.setItem("refresh-token", newRefreshToken)
+            }
+
+            processQueue(null, newAccessToken)
+            isRefreshing = false
+            return axiosInstance(originalRequest)
+          } catch (refreshErr) {
+            processQueue(refreshErr, null)
+            isRefreshing = false
+            document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+            document.cookie = "refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+            localStorage.removeItem("auth-token")
+            localStorage.removeItem("refresh-token")
+            if (!window.location.pathname.includes("/login")) {
+              window.location.href = "/login"
+            }
+            return Promise.reject(refreshErr)
+          }
+        }
+      }
+    }
+
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       if (typeof window !== "undefined") {
         document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+        document.cookie = "refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
         localStorage.removeItem("auth-token")
+        localStorage.removeItem("refresh-token")
         if (!window.location.pathname.includes("/login")) {
           window.location.href = "/login"
         }
@@ -659,8 +744,34 @@ export const apiClient = {
     return response.data
   },
 
-  getDocumentDownloadUrl: async (documentId: string, action: "view" | "download" = "view"): Promise<{ download_url: string; document_name: string }> => {
+  getDocumentDownloadUrl: async (documentId: string, action: "view" | "download" | "prepare" = "view"): Promise<{ download_url: string; document_name: string }> => {
     const response = await axiosInstance.get(`/documents/${documentId}/download-url?action=${action}`)
+    return response.data
+  },
+
+  sendForSignature: async (documentId: string, payload: {
+    target_page: number
+    signature_zone: { x: number; y: number; w: number; h: number }
+    fields?: any[]
+    recipient_name?: string
+    recipient_email?: string
+    instructions?: string
+    due_date?: string
+  }): Promise<any> => {
+    const response = await axiosInstance.post(`/admin/documents/${documentId}/send-for-signature`, payload)
+    return response.data
+  },
+
+  getSigningRequest: async (documentId: string): Promise<any> => {
+    const response = await axiosInstance.get(`/documents/${documentId}/signing-request`)
+    return response.data
+  },
+
+  signDocument: async (documentId: string, payload: {
+    values: Record<string, any>
+    declaration_accepted?: boolean
+  }): Promise<any> => {
+    const response = await axiosInstance.post(`/documents/${documentId}/sign`, payload)
     return response.data
   },
 

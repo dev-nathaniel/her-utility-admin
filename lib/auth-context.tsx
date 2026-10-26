@@ -66,6 +66,14 @@ function extractToken(response: unknown): string | null {
   return (inner?.token as string) || (inner?.access_token as string) || null
 }
 
+function extractRefreshToken(response: unknown): string | null {
+  if (!response || typeof response !== "object") return null
+  const obj = response as Record<string, unknown>
+  if (obj.refresh_token && typeof obj.refresh_token === "string") return obj.refresh_token
+  const inner = obj.data && typeof obj.data === "object" ? (obj.data as Record<string, unknown>) : obj
+  return (inner?.refresh_token as string) || null
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -108,8 +116,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: apiClient.logout,
     onSuccess: () => {
       document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      document.cookie = "refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
       if (typeof window !== "undefined") {
         localStorage.removeItem("auth-token")
+        localStorage.removeItem("refresh-token")
       }
       delete axiosInstance.defaults.headers.common["Authorization"]
       queryClient.setQueryData(["user"], null)
@@ -119,8 +129,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     onError: () => {
       document.cookie = "auth-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
+      document.cookie = "refresh-token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT"
       if (typeof window !== "undefined") {
         localStorage.removeItem("auth-token")
+        localStorage.removeItem("refresh-token")
       }
       delete axiosInstance.defaults.headers.common["Authorization"]
       queryClient.setQueryData(["user"], null)
@@ -132,12 +144,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (data: AuthCredentials) => {
     const result = await loginMutation.mutateAsync(data)
     const token = extractToken(result)
+    const refreshToken = extractRefreshToken(result)
     if (token) {
       document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`
       if (typeof window !== "undefined") {
         localStorage.setItem("auth-token", token)
       }
       axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`
+    }
+    if (refreshToken) {
+      document.cookie = `refresh-token=${refreshToken}; path=/; max-age=604800; SameSite=Lax`
+      if (typeof window !== "undefined") {
+        localStorage.setItem("refresh-token", refreshToken)
+      }
     }
     const currentUser = extractUser(result) || (await apiClient.getCurrentUser())
     queryClient.setQueryData(["user"], currentUser)
@@ -148,12 +167,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (data: AuthCredentials) => {
     const result = await signupMutation.mutateAsync(data)
     const token = extractToken(result)
+    const refreshToken = extractRefreshToken(result)
     if (token) {
       document.cookie = `auth-token=${token}; path=/; max-age=86400; SameSite=Lax`
       if (typeof window !== "undefined") {
         localStorage.setItem("auth-token", token)
       }
       axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`
+    }
+    if (refreshToken) {
+      document.cookie = `refresh-token=${refreshToken}; path=/; max-age=604800; SameSite=Lax`
+      if (typeof window !== "undefined") {
+        localStorage.setItem("refresh-token", refreshToken)
+      }
     }
     const currentUser = extractUser(result) || (await apiClient.getCurrentUser())
     queryClient.setQueryData(["user"], currentUser)

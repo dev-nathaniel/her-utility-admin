@@ -125,7 +125,36 @@ export function PdfPageCanvas({
           const buffer = await file.arrayBuffer()
           docSource = { data: new Uint8Array(buffer) }
         } else if (url) {
-          docSource = { url }
+          let arrayBuffer: ArrayBuffer | null = null
+
+          // Tier 1: Direct fetch (CORS now configured on Cloudflare R2)
+          try {
+            const directRes = await fetch(url)
+            if (directRes.ok) {
+              arrayBuffer = await directRes.arrayBuffer()
+            } else {
+              throw new Error(`Direct fetch returned HTTP ${directRes.status}`)
+            }
+          } catch (directErr) {
+            console.warn("Direct fetch of PDF failed, attempting server proxy...", directErr)
+            // Tier 2: Same-origin Next.js server proxy fallback
+            try {
+              const proxyRes = await fetch(`/api/proxy-pdf?url=${encodeURIComponent(url)}`)
+              if (proxyRes.ok) {
+                arrayBuffer = await proxyRes.arrayBuffer()
+              } else {
+                throw new Error(`Proxy fetch returned HTTP ${proxyRes.status}`)
+              }
+            } catch (proxyErr) {
+              console.warn("Proxy fetch failed, falling back to pdfjs URL loader:", proxyErr)
+              // Tier 3: Native PDF.js URL loader
+              docSource = { url }
+            }
+          }
+
+          if (arrayBuffer) {
+            docSource = { data: new Uint8Array(arrayBuffer) }
+          }
         }
 
         if (!docSource) return

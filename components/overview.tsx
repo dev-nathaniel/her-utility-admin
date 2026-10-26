@@ -310,7 +310,7 @@ export function DashboardOverview() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
-                      {getUrgencyBadge(cust.urgency_level)}
+                      {/* {getUrgencyBadge(cust.urgency_level)} */}
                       <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-xs">
                         <Link href={`/dashboard/businesses?open=${cust.id}`}>View</Link>
                       </Button>
