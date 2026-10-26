@@ -744,8 +744,14 @@ export const apiClient = {
     return response.data
   },
 
-  getDocumentDownloadUrl: async (documentId: string, action: "view" | "download" | "prepare" = "view"): Promise<{ download_url: string; document_name: string }> => {
-    const response = await axiosInstance.get(`/documents/${documentId}/download-url?action=${action}`)
+  getDocumentDownloadUrl: async (
+    documentId: string,
+    action: "view" | "download" | "prepare" = "view",
+    target?: "signed" | "audit" | "combined" | "original"
+  ): Promise<{ download_url: string; document_name: string }> => {
+    let url = `/documents/${documentId}/download-url?action=${action}`
+    if (target) url += `&target=${target}`
+    const response = await axiosInstance.get(url)
     return response.data
   },
 

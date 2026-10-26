@@ -26,6 +26,7 @@ import {
   Info,
   Smartphone,
   Move,
+  Lock,
 } from "lucide-react"
 
 export interface SignatureZone {
@@ -321,6 +322,11 @@ export default function PrepareDocumentPage() {
     )
   }
 
+  const isSigned =
+    document.status === "signed" ||
+    document.status === "completed" ||
+    document.document_type === "signed_loa"
+
   return (
     <div className="space-y-6 pb-16 max-w-7xl mx-auto">
       {/* Header */}
@@ -357,19 +363,66 @@ export default function PrepareDocumentPage() {
             onClick={() => router.push("/dashboard/documents")}
             className="text-xs font-medium"
           >
-            Cancel
+            {isSigned ? "Back to Documents" : "Cancel"}
           </Button>
-          <Button
-            size="sm"
-            onClick={() => sendMutation.mutate()}
-            disabled={sendMutation.isPending}
-            className="gap-2 text-xs font-semibold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            <Send className="h-3.5 w-3.5" />
-            {sendMutation.isPending ? "Dispatching..." : "Dispatch to Customer Mobile App"}
-          </Button>
+          {!isSigned ? (
+            <Button
+              size="sm"
+              onClick={() => sendMutation.mutate()}
+              disabled={sendMutation.isPending}
+              className="gap-2 text-xs font-semibold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              <Send className="h-3.5 w-3.5" />
+              {sendMutation.isPending ? "Dispatching..." : "Dispatch to Customer Mobile App"}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              disabled
+              className="gap-2 text-xs font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 cursor-not-allowed"
+            >
+              <Lock className="h-3.5 w-3.5 text-emerald-600" />
+              Document Sealed (Signed)
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Safety Notice if document is already signed */}
+      {isSigned && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 shrink-0">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">Document Signed & Cryptographically Sealed</p>
+              <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                This document was executed and sealed on {document.signature_date ? new Date(document.signature_date).toLocaleDateString("en-GB") : "record"}. Signature placement and re-dispatch are disabled for completed legal agreements.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => router.push("/dashboard/documents")}
+              className="text-xs font-semibold"
+            >
+              Back to Documents
+            </Button>
+            {livePdfUrl && (
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5"
+                onClick={() => window.open(livePdfUrl, "_blank")}
+              >
+                <Eye className="h-3.5 w-3.5" /> View Signed Copy
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Side: Signer Info & Field Controls (No Presets) */}

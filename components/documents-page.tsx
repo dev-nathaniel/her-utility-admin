@@ -94,9 +94,13 @@ export function DocumentsPage() {
     },
   })
 
-  const handleDownload = async (docId: string, action: "view" | "download" = "view") => {
+  const handleDownload = async (
+    docId: string,
+    action: "view" | "download" = "view",
+    target?: "signed" | "audit" | "combined" | "original"
+  ) => {
     try {
-      const res = await apiClient.getDocumentDownloadUrl(docId, action)
+      const res = await apiClient.getDocumentDownloadUrl(docId, action, target)
       if (res.download_url) {
         window.open(res.download_url, "_blank")
       }
@@ -347,7 +351,7 @@ export function DocumentsPage() {
               title="View document in new tab"
             >
               <Eye className="h-3.5 w-3.5" />
-              View
+              {isDocCompleted(d) ? "View Signed" : "View"}
             </Button>
           )}
 
@@ -362,16 +366,30 @@ export function DocumentsPage() {
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem onClick={() => handleDownload(d.id, "view")}>
-                <Eye className="h-4 w-4 mr-2" /> View Document
+                <Eye className="h-4 w-4 mr-2" /> {isDocCompleted(d) ? "View Signed PDF" : "View Document"}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleDownload(d.id, "download")}>
                 <Download className="h-4 w-4 mr-2" /> Download PDF
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/dashboard/documents/${d.id}/prepare`)}>
-                <PenTool className="h-4 w-4 mr-2" /> Signature Studio
-              </DropdownMenuItem>
+
+              {/* Only show Signature Studio if the document has NOT been completed */}
+              {!isDocCompleted(d) ? (
+                <DropdownMenuItem onClick={() => router.push(`/dashboard/documents/${d.id}/prepare`)}>
+                  <PenTool className="h-4 w-4 mr-2" /> Signature Studio
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={() => handleDownload(d.id, "download", "combined")}>
+                    <FileText className="h-4 w-4 mr-2 text-primary" /> Download Combined Pack
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDownload(d.id, "download", "audit")}>
+                    <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" /> Download Audit Certificate
+                  </DropdownMenuItem>
+                </>
+              )}
+
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() =>
