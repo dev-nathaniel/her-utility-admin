@@ -28,6 +28,8 @@ import {
   CheckCircle2,
   Smartphone,
   ExternalLink,
+  RotateCcw,
+  Archive,
 } from "lucide-react"
 import {
   Select,
@@ -54,7 +56,7 @@ export function DocumentsPage() {
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
-  const [activeTab, setActiveTab] = useState<"all" | "needs_signature" | "completed" | "visible" | "internal">("all")
+  const [activeTab, setActiveTab] = useState<"all" | "needs_signature" | "completed" | "visible" | "internal" | "archived">("all")
   const [isUploadOpen, setIsUploadOpen] = useState(false)
   const [selectedCompanyForUpload, setSelectedCompanyForUpload] = useState<any>(null)
   const [isSignDialogOpen, setIsSignDialogOpen] = useState(false)
@@ -84,13 +86,25 @@ export function DocumentsPage() {
   })
 
   const deleteDocMutation = useMutation({
-    mutationFn: (docId: string) => apiClient.deleteDocument(docId),
-    onSuccess: () => {
-      toast.success("Document marked superseded / archived")
+    mutationFn: ({ docId, permanent }: { docId: string; permanent?: boolean }) =>
+      apiClient.deleteDocument(docId, permanent),
+    onSuccess: (_, vars) => {
+      toast.success(vars.permanent ? "Document permanently deleted" : "Document moved to archive / superseded")
       queryClient.invalidateQueries({ queryKey: ["documents"] })
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.detail || "Failed to archive document")
+      toast.error(err?.response?.data?.detail || "Failed to process document")
+    },
+  })
+
+  const restoreDocMutation = useMutation({
+    mutationFn: (docId: string) => apiClient.restoreDocument(docId),
+    onSuccess: () => {
+      toast.success("Document restored to active status")
+      queryClient.invalidateQueries({ queryKey: ["documents"] })
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to restore document")
     },
   })
 
@@ -145,7 +159,11 @@ export function DocumentsPage() {
   }
 
   const isDocCompleted = (d: DocumentData) => {
-    return d.status === "signed" || d.status === "completed" || d.document_type === "signed_loa"
+    return (d.status === "signed" || d.status === "completed" || d.document_type === "signed_loa") && !isDocArchived(d)
+  }
+
+  const isDocArchived = (d: DocumentData) => {
+    return d.status === "superseded" || d.status === "archived"
   }
 
   const filteredDocs = documents.filter((d: DocumentData) => {
@@ -161,26 +179,32 @@ export function DocumentsPage() {
     const matchesType =
       typeFilter === "all" ? true : (d.document_type || "").toLowerCase().includes(typeFilter.toLowerCase())
 
+    const isArchived = isDocArchived(d)
+
     const matchesTab =
       activeTab === "all"
-        ? true
+        ? !isArchived
         : activeTab === "needs_signature"
-        ? isDocNeedingSignature(d)
-        : activeTab === "completed"
-        ? isDocCompleted(d)
-        : activeTab === "visible"
-        ? d.is_customer_visible === true
-        : d.is_customer_visible === false
+          ? isDocNeedingSignature(d) && !isArchived
+          : activeTab === "completed"
+            ? isDocCompleted(d) && !isArchived
+            : activeTab === "visible"
+              ? d.is_customer_visible === true && !isArchived
+              : activeTab === "internal"
+                ? d.is_customer_visible === false && !isArchived
+                : isArchived
 
     return matchesSearch && matchesType && matchesTab
   })
 
-  // KPI Metrics
-  const totalDocs = documents.length
-  const needsSignatureCount = documents.filter(isDocNeedingSignature).length
-  const completedCount = documents.filter(isDocCompleted).length
-  const customerVisibleCount = documents.filter((d: DocumentData) => d.is_customer_visible).length
-  const internalCount = totalDocs - customerVisibleCount
+  // KPI Metrics (Active vs Archived)
+  const activeDocs = documents.filter((d: DocumentData) => !isDocArchived(d))
+  const totalActiveDocs = activeDocs.length
+  const needsSignatureCount = activeDocs.filter(isDocNeedingSignature).length
+  const completedCount = activeDocs.filter(isDocCompleted).length
+  const customerVisibleCount = activeDocs.filter((d: DocumentData) => d.is_customer_visible).length
+  const internalCount = totalActiveDocs - customerVisibleCount
+  const archivedCount = documents.filter(isDocArchived).length
 
   const columns: DataTableColumn<DocumentData>[] = [
     {
@@ -240,15 +264,14 @@ export function DocumentsPage() {
           <div className="flex flex-col gap-1 items-start">
             <Badge
               variant="outline"
-              className={`text-xs font-medium ${
-                isLoa
+              className={`text-xs font-medium ${isLoa
                   ? "border-purple-300 text-purple-700 bg-purple-50/50 dark:border-purple-800 dark:text-purple-300 dark:bg-purple-950/20"
                   : isContract
-                  ? "border-emerald-300 text-emerald-700 bg-emerald-50/50 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/20"
-                  : isQuote
-                  ? "border-amber-300 text-amber-700 bg-amber-50/50 dark:border-amber-800 dark:text-amber-300 dark:bg-amber-950/20"
-                  : ""
-              }`}
+                    ? "border-emerald-300 text-emerald-700 bg-emerald-50/50 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/20"
+                    : isQuote
+                      ? "border-amber-300 text-amber-700 bg-amber-50/50 dark:border-amber-800 dark:text-amber-300 dark:bg-amber-950/20"
+                      : ""
+                }`}
             >
               {formatDocType(d.document_type)}
             </Badge>
@@ -305,11 +328,10 @@ export function DocumentsPage() {
           type="button"
           onClick={() => toggleVisibilityMutation.mutate({ docId: d.id, isVisible: !d.is_customer_visible })}
           title={d.is_customer_visible ? "Visible in customer mobile app (click to make internal only)" : "Internal only (click to make visible in customer app)"}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${
-            d.is_customer_visible
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${d.is_customer_visible
               ? "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 hover:bg-emerald-100"
               : "bg-muted text-muted-foreground border border-border hover:bg-muted/80"
-          }`}
+            }`}
         >
           {d.is_customer_visible ? (
             <>
@@ -351,7 +373,7 @@ export function DocumentsPage() {
               title="View document in new tab"
             >
               <Eye className="h-3.5 w-3.5" />
-              {isDocCompleted(d) ? "View Signed" : "View"}
+              {isDocCompleted(d) ? "View" : "View"}
             </Button>
           )}
 
@@ -374,12 +396,12 @@ export function DocumentsPage() {
                 <Download className="h-4 w-4 mr-2" /> Download PDF
               </DropdownMenuItem>
 
-              {/* Only show Signature Studio if the document has NOT been completed */}
-              {!isDocCompleted(d) ? (
+              {/* Only show Signature Studio if the document has NOT been completed or archived */}
+              {!isDocCompleted(d) && !isDocArchived(d) ? (
                 <DropdownMenuItem onClick={() => router.push(`/dashboard/documents/${d.id}/prepare`)}>
                   <PenTool className="h-4 w-4 mr-2" /> Signature Studio
                 </DropdownMenuItem>
-              ) : (
+              ) : isDocCompleted(d) ? (
                 <>
                   <DropdownMenuItem onClick={() => handleDownload(d.id, "download", "combined")}>
                     <FileText className="h-4 w-4 mr-2 text-primary" /> Download Combined Pack
@@ -388,7 +410,7 @@ export function DocumentsPage() {
                     <ShieldCheck className="h-4 w-4 mr-2 text-emerald-600" /> Download Audit Certificate
                   </DropdownMenuItem>
                 </>
-              )}
+              ) : null}
 
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -400,12 +422,26 @@ export function DocumentsPage() {
                 {d.is_customer_visible ? "Make Internal Only" : "Make Visible to Customer"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => deleteDocMutation.mutate(d.id)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Archive Document
-              </DropdownMenuItem>
+              {isDocArchived(d) ? (
+                <>
+                  <DropdownMenuItem onClick={() => restoreDocMutation.mutate(d.id)}>
+                    <RotateCcw className="h-4 w-4 mr-2 text-emerald-600" /> Restore to Active
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => deleteDocMutation.mutate({ docId: d.id, permanent: true })}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Permanently Delete
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => deleteDocMutation.mutate({ docId: d.id, permanent: false })}
+                >
+                  <Archive className="h-4 w-4 mr-2" /> Archive Document
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -489,28 +525,27 @@ export function DocumentsPage() {
         {/* Quick Filter Tabs */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
           {[
-            { id: "all", label: "All Documents", count: totalDocs },
+            { id: "all", label: "Active Documents", count: totalActiveDocs },
             { id: "needs_signature", label: "Needs Signature", count: needsSignatureCount },
             { id: "completed", label: "Completed", count: completedCount },
             { id: "visible", label: "Customer-Visible", count: customerVisibleCount },
             { id: "internal", label: "Internal Only", count: internalCount },
+            { id: "archived", label: "Archived / Superseded", count: archivedCount },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 flex items-center gap-1.5 ${
-                activeTab === tab.id
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 flex items-center gap-1.5 ${activeTab === tab.id
                   ? "bg-primary text-primary-foreground shadow-xs"
                   : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
+                }`}
             >
               <span>{tab.label}</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                  activeTab === tab.id
+                className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeTab === tab.id
                     ? "bg-primary-foreground/20 text-primary-foreground"
                     : "bg-background/80 text-muted-foreground"
-                }`}
+                  }`}
               >
                 {tab.count}
               </span>

@@ -739,8 +739,13 @@ export const apiClient = {
     return response.data
   },
 
-  deleteDocument: async (documentId: string): Promise<any> => {
-    const response = await axiosInstance.delete(`/admin/documents/${documentId}`)
+  deleteDocument: async (documentId: string, permanent: boolean = false): Promise<any> => {
+    const response = await axiosInstance.delete(`/admin/documents/${documentId}${permanent ? "?permanent=true" : ""}`)
+    return response.data
+  },
+
+  restoreDocument: async (documentId: string): Promise<any> => {
+    const response = await axiosInstance.post(`/admin/documents/${documentId}/restore`)
     return response.data
   },
 
