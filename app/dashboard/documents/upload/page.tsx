@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { apiClient, type CompanyData } from "@/lib/api-client"
 import { PdfPageCanvas } from "@/components/pdf-page-canvas"
 import { toast } from "sonner"
@@ -48,6 +50,11 @@ import {
   Sliders,
   Move,
   Maximize2,
+  HelpCircle,
+  Trash2,
+  Plus,
+  Sparkles,
+  Check,
 } from "lucide-react"
 
 export interface SignatureZone {
@@ -110,6 +117,64 @@ function UploadDocumentForm() {
   const [reqEmail, setReqEmail] = useState(false)
   const [reqDate, setReqDate] = useState(false)
   const [reqTermsCheck, setReqTermsCheck] = useState(false)
+
+  // ── DocuSign Flow States (Set Up Envelope & Fields) ──
+  const [docusignStep, setDocusignStep] = useState<"envelope" | "fields">("envelope")
+  const [emailSubject, setEmailSubject] = useState("Complete with DocuSign:")
+  const [emailMessage, setEmailMessage] = useState("")
+  const [reminderFrequency, setReminderFrequency] = useState("Every day")
+  const [selfSignNeeded, setSelfSignNeeded] = useState(false)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
+  const [additionalRecipients, setAdditionalRecipients] = useState<
+    Array<{ id: string; name: string; email: string }>
+  >([])
+
+  // Keep subject synced with document name
+  useEffect(() => {
+    if (documentName) {
+      setEmailSubject((prev) => {
+        if (!prev || prev === "Complete with DocuSign:" || prev.startsWith("Complete with DocuSign:")) {
+          return `Complete with DocuSign: ${documentName}`
+        }
+        return prev
+      })
+    }
+  }, [documentName])
+
+  // Sync signer mode with selfSignNeeded
+  useEffect(() => {
+    if (selfSignNeeded) {
+      setSignerMode("both")
+    } else {
+      setSignerMode("customer")
+    }
+  }, [selfSignNeeded])
+
+  const handleProceedToAddFields = () => {
+    if (!selectedFile) {
+      toast.error("Please upload a document to proceed.")
+      fileInputRef.current?.click()
+      return
+    }
+    if (!recipientName.trim()) {
+      toast.error("Please provide the recipient's full name.")
+      return
+    }
+    if (!recipientEmail.trim()) {
+      toast.error("Please provide the recipient's email address.")
+      return
+    }
+    if (!emailSubject.trim()) {
+      toast.error("Please provide an envelope subject line.")
+      return
+    }
+
+    if (emailMessage.trim()) {
+      setInstructions(emailMessage.trim())
+    }
+
+    setDocusignStep("fields")
+  }
 
   // Fetch Companies
   const { data: companies = [], isLoading: isLoadingCompanies } = useQuery({
@@ -474,7 +539,709 @@ function UploadDocumentForm() {
   })
 
   return (
-    <div className="space-y-6 pb-16 max-w-6xl mx-auto">
+    <div className="min-h-screen bg-background">
+      {/* ── DOCUSIGN FLOW STEP 1: SET UP ENVELOPE (MIRRORS DOCUSIGN EXACTLY) ── */}
+      {docusignStep === "envelope" && (
+        <div className="flex flex-col min-h-screen bg-background">
+          {/* Top Header Bar */}
+          <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b bg-card px-4 sm:px-8 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.push("/dashboard/documents")}
+                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                title="Exit Envelope Setup"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+              <h1 className="text-base sm:text-lg font-semibold tracking-tight text-foreground">
+                Set Up Envelope
+              </h1>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                title="Help & Guidance"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs sm:text-sm font-medium text-foreground hover:text-primary px-3"
+              >
+                View Plans
+              </Button>
+
+              <Button
+                size="sm"
+                onClick={handleProceedToAddFields}
+                className="h-9 px-4 sm:px-5 text-xs sm:text-sm font-semibold rounded-md shadow-sm bg-[#4c00ff] hover:bg-[#3d00cc] text-white transition-all flex items-center gap-1.5"
+              >
+                Next: Add Fields
+              </Button>
+            </div>
+          </header>
+
+          {/* Main Envelope Body */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+              {/* 1. Add documents */}
+              <section className="space-y-3">
+                <h2 className="text-base sm:text-lg font-semibold text-foreground tracking-tight">
+                  Add documents
+                </h2>
+
+                {!selectedFile ? (
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      setIsDraggingFile(true)
+                    }}
+                    onDragLeave={() => setIsDraggingFile(false)}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      setIsDraggingFile(false)
+                      const f = e.dataTransfer.files?.[0]
+                      if (f) handleFilePicked(f)
+                    }}
+                    className={cn(
+                      "rounded-xl border border-slate-200/90 dark:border-border/70 p-10 sm:p-14 text-center transition-colors",
+                      isDraggingFile
+                        ? "border-primary bg-primary/5"
+                        : "bg-slate-50/80 dark:bg-muted/20"
+                    )}
+                  >
+                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white dark:bg-card border border-border/80 shadow-xs text-muted-foreground">
+                      <Upload className="h-5 w-5" />
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Drag a document here or
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="h-9 px-6 text-xs sm:text-sm font-semibold rounded-md shadow-sm bg-[#4c00ff] hover:bg-[#3d00cc] text-white"
+                    >
+                      Upload
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) handleFilePicked(f)
+                      }}
+                      className="hidden"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-border bg-card p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs">
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <FileText className="h-6 w-6" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-foreground truncate" title={selectedFile.name}>
+                          {documentName || selectedFile.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {(selectedFile.size / 1024).toFixed(0)} KB • Ready for field placement
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs font-medium"
+                      >
+                        Change
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setSelectedFile(null)
+                          setDocumentName("")
+                        }}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-xs sm:text-sm font-medium text-primary hover:underline cursor-pointer"
+                  >
+                    Add More Documents
+                  </button>
+                </div>
+              </section>
+
+              {/* 2. Add a recipient */}
+              <section className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <h2 className="text-base sm:text-lg font-semibold text-foreground tracking-tight">
+                    Add a recipient
+                  </h2>
+                  {companies.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground hidden sm:inline">Client Company:</span>
+                      <Select
+                        value={selectedBusinessId}
+                        onValueChange={(val) => {
+                          setSelectedBusinessId(val)
+                          const b = companies.find((c: any) => c.id === val || c._id === val)
+                          if (b) {
+                            setRecipientName(b.full_name || b.name || "")
+                            setRecipientEmail(b.email || "")
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-48 sm:w-60 bg-card border-input">
+                          <SelectValue placeholder="Quick fill from client directory" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companies.map((c: any) => (
+                            <SelectItem key={c.id || c._id} value={c.id || c._id} className="text-xs">
+                              {c.company_name || c.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+
+                {/* Primary Recipient Card with cyan left accent bar */}
+                <div className="relative rounded-lg border border-border bg-card shadow-xs overflow-hidden">
+                  {/* Cyan left accent bar */}
+                  <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-[#00c9db] dark:bg-cyan-400" />
+
+                  <div className="p-5 sm:p-6 pl-6 sm:pl-7 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">
+                        Name <span className="text-rose-500">*</span>
+                      </label>
+                      <Input
+                        value={recipientName}
+                        onChange={(e) => setRecipientName(e.target.value)}
+                        placeholder="Recipient full name"
+                        className="h-10 text-sm bg-background border-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-foreground mb-1.5">
+                        Email <span className="text-rose-500">*</span>
+                      </label>
+                      <Input
+                        type="email"
+                        value={recipientEmail}
+                        onChange={(e) => setRecipientEmail(e.target.value)}
+                        placeholder="recipient@company.com"
+                        className="h-10 text-sm bg-background border-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional recipient cards if added */}
+                {additionalRecipients.map((rec, index) => {
+                  const colors = ["#f59e0b", "#a855f7", "#10b981", "#3b82f6"]
+                  const barColor = colors[index % colors.length]
+                  return (
+                    <div key={rec.id} className="relative rounded-lg border border-border bg-card shadow-xs overflow-hidden mt-3">
+                      <div className="absolute left-0 top-0 bottom-0 w-2.5" style={{ backgroundColor: barColor }} />
+                      <div className="p-5 sm:p-6 pl-6 sm:pl-7 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-foreground mb-1.5">
+                            Recipient {index + 2} Name <span className="text-rose-500">*</span>
+                          </label>
+                          <Input
+                            value={rec.name}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setAdditionalRecipients((prev) =>
+                                prev.map((r) => (r.id === rec.id ? { ...r, name: val } : r))
+                              )
+                            }}
+                            placeholder="Full name"
+                            className="h-10 text-sm bg-background"
+                          />
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1">
+                            <label className="block text-xs font-semibold text-foreground mb-1.5">
+                              Email <span className="text-rose-500">*</span>
+                            </label>
+                            <Input
+                              type="email"
+                              value={rec.email}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setAdditionalRecipients((prev) =>
+                                  prev.map((r) => (r.id === rec.id ? { ...r, email: val } : r))
+                                )
+                              }}
+                              placeholder="Email address"
+                              className="h-10 text-sm bg-background"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() =>
+                              setAdditionalRecipients((prev) => prev.filter((r) => r.id !== rec.id))
+                            }
+                            className="h-10 w-10 text-muted-foreground hover:text-destructive shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+
+                {/* Checkbox and multiple recipients link */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                  <div className="flex items-center gap-2.5">
+                    <Checkbox
+                      id="docusign-self-sign"
+                      checked={selfSignNeeded}
+                      onCheckedChange={(checked) => setSelfSignNeeded(Boolean(checked))}
+                    />
+                    <label
+                      htmlFor="docusign-self-sign"
+                      className="text-xs sm:text-sm font-normal text-foreground cursor-pointer select-none"
+                    >
+                      I also need to sign the document
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdditionalRecipients((prev) => [
+                        ...prev,
+                        { id: String(Date.now()), name: "", email: "" },
+                      ])
+                    }}
+                    className="text-xs sm:text-sm font-medium text-primary hover:underline cursor-pointer self-start sm:self-auto"
+                  >
+                    Add multiple recipients
+                  </button>
+                </div>
+              </section>
+
+              {/* 3. Add message */}
+              <section className="space-y-4 pt-4 border-t border-border/60">
+                <h2 className="text-base sm:text-lg font-semibold text-foreground tracking-tight">
+                  Add message
+                </h2>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1.5">
+                    Subject <span className="text-rose-500">*</span>
+                  </label>
+                  <Input
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value.slice(0, 100))}
+                    maxLength={100}
+                    placeholder="Complete with DocuSign:"
+                    className="h-10 text-sm bg-background border-input"
+                  />
+                  <div className="text-[11px] text-muted-foreground text-right mt-1">
+                    {emailSubject.length}/100
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1.5">
+                    Message
+                  </label>
+                  <Textarea
+                    value={emailMessage}
+                    onChange={(e) => setEmailMessage(e.target.value.slice(0, 10000))}
+                    maxLength={10000}
+                    placeholder="Enter Message"
+                    rows={4}
+                    className="text-sm bg-background border-input resize-y"
+                  />
+                  <div className="text-[11px] text-muted-foreground text-right mt-1">
+                    {emailMessage.length}/10000
+                  </div>
+                </div>
+              </section>
+
+              {/* 4. Frequency of reminders */}
+              <section className="space-y-2 pt-4 border-t border-border/60 pb-16">
+                <label className="block text-xs font-semibold text-foreground mb-1.5">
+                  Frequency of reminders
+                </label>
+                <Select
+                  value={reminderFrequency}
+                  onValueChange={setReminderFrequency}
+                >
+                  <SelectTrigger className="w-full sm:w-56 h-10 text-sm bg-background border-input">
+                    <SelectValue placeholder="Every day" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Every day">Every day</SelectItem>
+                    <SelectItem value="Every 2 days">Every 2 days</SelectItem>
+                    <SelectItem value="Every 3 days">Every 3 days</SelectItem>
+                    <SelectItem value="Every week">Every week</SelectItem>
+                    <SelectItem value="No reminders">No reminders</SelectItem>
+                  </SelectContent>
+                </Select>
+              </section>
+            </div>
+          </main>
+        </div>
+      )}
+
+      {/* ── DOCUSIGN FLOW STEP 2: ADD FIELDS (FIELD PLACEMENT STUDIO) ── */}
+      {docusignStep === "fields" && (
+        <div className="flex flex-col min-h-screen bg-background">
+          {/* Top Header Bar */}
+          <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b bg-card px-4 sm:px-8 shadow-2xs">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDocusignStep("envelope")}
+                className="gap-1.5 text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back to Envelope Setup
+              </Button>
+              <div className="h-4 w-px bg-border hidden sm:block" />
+              <div className="min-w-0 hidden sm:block">
+                <p className="text-sm font-semibold truncate text-foreground">
+                  {documentName || selectedFile?.name || "Document"}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Signer: {recipientName} ({recipientEmail})
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Button
+                size="sm"
+                onClick={() => uploadAndSendMutation.mutate()}
+                disabled={uploadAndSendMutation.isPending}
+                className="h-9 px-5 text-xs sm:text-sm font-semibold rounded-md shadow-sm bg-[#4c00ff] hover:bg-[#3d00cc] text-white flex items-center gap-2"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {uploadAndSendMutation.isPending ? "Sending Envelope..." : "Send Envelope"}
+              </Button>
+            </div>
+          </header>
+
+          {/* Placement Studio Body */}
+          <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+            <div className="max-w-7xl mx-auto space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left Sidebar: Signer Details & Field Toggles */}
+                <div className="lg:col-span-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Smartphone className="h-4 w-4 text-emerald-600" />
+                        Assigned Signer
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-xs">
+                      <div>
+                        <span className="text-muted-foreground">Signatory: </span>
+                        <strong className="text-foreground">{recipientName || "Customer"}</strong>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Email: </span>
+                        <span className="text-foreground">{recipientEmail}</span>
+                      </div>
+                      <div className="pt-1">
+                        <span className="text-muted-foreground">Placement: </span>
+                        <Badge variant="outline" className="text-[11px] font-mono">
+                          Page {targetPage} • X: {Math.round(zone.x * 100)}%, Y: {Math.round(zone.y * 100)}%
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Field Toggles */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Sliders className="h-4 w-4 text-primary" />
+                        Fields to Place
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Toggle optional fields and drag them anywhere on the page.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center justify-between py-1 border-b border-border/50">
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          <PenTool className="h-3.5 w-3.5 text-primary" />
+                          Signature Box (Required)
+                        </div>
+                        <Badge className="bg-primary/10 text-primary text-[10px]">Mandatory</Badge>
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 border-b border-border/50">
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          <UserCheck className="h-3.5 w-3.5 text-blue-600" />
+                          Full Name Field
+                        </div>
+                        <Switch checked={reqFullName} onCheckedChange={setReqFullName} />
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 border-b border-border/50">
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          <Briefcase className="h-3.5 w-3.5 text-indigo-600" />
+                          Job Title Field
+                        </div>
+                        <Switch checked={reqJobTitle} onCheckedChange={setReqJobTitle} />
+                      </div>
+
+                      <div className="flex items-center justify-between py-1 border-b border-border/50">
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          <Mail className="h-3.5 w-3.5 text-emerald-600" />
+                          Email Field
+                        </div>
+                        <Switch checked={reqEmail} onCheckedChange={setReqEmail} />
+                      </div>
+
+                      <div className="flex items-center justify-between py-1">
+                        <div className="flex items-center gap-2 text-xs font-medium">
+                          <Calendar className="h-3.5 w-3.5 text-amber-600" />
+                          Date Signed Field
+                        </div>
+                        <Switch checked={reqDate} onCheckedChange={setReqDate} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Right: PDF Canvas & Controls */}
+                <div className="lg:col-span-8 space-y-3">
+                  {/* Canvas Toolbar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border bg-card text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground">Target Page:</span>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={targetPage <= 1}
+                          onClick={() => setTargetPage((p) => Math.max(1, p - 1))}
+                          className="h-7 w-7 p-0"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <span className="px-2 font-mono font-medium">
+                          {targetPage} / {detectedTotalPages || 1}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={targetPage >= detectedTotalPages}
+                          onClick={() => setTargetPage((p) => p + 1)}
+                          className="h-7 w-7 p-0"
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setZoomScale((z) => Math.max(0.6, Number((z - 0.1).toFixed(1))))}
+                        className="h-7 px-2"
+                      >
+                        <ZoomOut className="h-3.5 w-3.5 mr-1" /> Zoom Out
+                      </Button>
+                      <span className="font-mono text-muted-foreground">{Math.round(zoomScale * 100)}%</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setZoomScale((z) => Math.min(1.8, Number((z + 0.1).toFixed(1))))}
+                        className="h-7 px-2"
+                      >
+                        <ZoomIn className="h-3.5 w-3.5 mr-1" /> Zoom In
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Interactive Document Canvas with Draggable Zones */}
+                  <div
+                    ref={previewContainerRef}
+                    onClick={(e) => {
+                      if (!previewContainerRef.current) return
+                      const rect = previewContainerRef.current.getBoundingClientRect()
+                      const x = (e.clientX - rect.left) / rect.width
+                      const y = (e.clientY - rect.top) / rect.height
+                      handleCanvasClick({ x, y })
+                    }}
+                    style={{
+                      transform: `scale(${zoomScale})`,
+                      transformOrigin: "top center",
+                      transition: "transform 0.15s ease-out",
+                    }}
+                    className="relative border rounded-xl shadow-md bg-white overflow-hidden select-none cursor-crosshair mx-auto"
+                  >
+                    {selectedFile ? (
+                      <PdfPageCanvas
+                        file={selectedFile}
+                        pageNumber={targetPage}
+                        onTotalPages={(total) => setDetectedTotalPages(total)}
+                      />
+                    ) : (
+                      <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
+                        No document loaded
+                      </div>
+                    )}
+
+                    {/* Draggable Signature Zone */}
+                    <div
+                      onMouseDown={(e) => handleFieldMouseDown(e, "signature", zone, setZone)}
+                      style={{
+                        position: "absolute",
+                        left: `${zone.x * 100}%`,
+                        top: `${zone.y * 100}%`,
+                        width: `${zone.w * 100}%`,
+                        height: `${zone.h * 100}%`,
+                        minHeight: "38px",
+                        cursor: activeDragField === "signature" ? "grabbing" : "grab",
+                      }}
+                      className="border-2 border-dashed border-primary bg-primary/10 rounded-md p-2 flex items-center justify-between text-xs text-primary font-bold shadow-lg z-30 hover:bg-primary/15 transition-colors"
+                      title="Drag to position Signature"
+                    >
+                      <div className="flex items-center gap-1.5 truncate">
+                        <PenTool className="h-4 w-4 shrink-0" />
+                        <span className="truncate">Sign Here • {recipientName || "Customer"}</span>
+                      </div>
+                      <Move className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                    </div>
+
+                    {/* Draggable Full Name */}
+                    {reqFullName && (
+                      <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "fullName", fullNameZone, setFullNameZone)}
+                        style={{
+                          position: "absolute",
+                          left: `${fullNameZone.x * 100}%`,
+                          top: `${fullNameZone.y * 100}%`,
+                          width: `${fullNameZone.w * 100}%`,
+                          height: `${fullNameZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "fullName" ? "grabbing" : "grab",
+                        }}
+                        className="border-2 border-dashed border-blue-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                      >
+                        <span>Full Name: {recipientName || "Name"}</span>
+                        <Move className="h-3.5 w-3.5 opacity-70" />
+                      </div>
+                    )}
+
+                    {/* Draggable Job Title */}
+                    {reqJobTitle && (
+                      <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone)}
+                        style={{
+                          position: "absolute",
+                          left: `${jobTitleZone.x * 100}%`,
+                          top: `${jobTitleZone.y * 100}%`,
+                          width: `${jobTitleZone.w * 100}%`,
+                          height: `${jobTitleZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "jobTitle" ? "grabbing" : "grab",
+                        }}
+                        className="border-2 border-dashed border-indigo-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                      >
+                        <span>Job Title: Director</span>
+                        <Move className="h-3.5 w-3.5 opacity-70" />
+                      </div>
+                    )}
+
+                    {/* Draggable Email */}
+                    {reqEmail && (
+                      <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "email", emailZone, setEmailZone)}
+                        style={{
+                          position: "absolute",
+                          left: `${emailZone.x * 100}%`,
+                          top: `${emailZone.y * 100}%`,
+                          width: `${emailZone.w * 100}%`,
+                          height: `${emailZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "email" ? "grabbing" : "grab",
+                        }}
+                        className="border-2 border-dashed border-emerald-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                      >
+                        <span>Email: {recipientEmail || "email@company.com"}</span>
+                        <Move className="h-3.5 w-3.5 opacity-70" />
+                      </div>
+                    )}
+
+                    {/* Draggable Date */}
+                    {reqDate && (
+                      <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "date", dateZone, setDateZone)}
+                        style={{
+                          position: "absolute",
+                          left: `${dateZone.x * 100}%`,
+                          top: `${dateZone.y * 100}%`,
+                          width: `${dateZone.w * 100}%`,
+                          height: `${dateZone.h * 100}%`,
+                          minHeight: "32px",
+                          cursor: activeDragField === "date" ? "grabbing" : "grab",
+                        }}
+                        className="border-2 border-dashed border-amber-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                      >
+                        <span>Date Signed</span>
+                        <Move className="h-3.5 w-3.5 opacity-70" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      )}
+
+      {/* =========================================================================
+          OLD STEPPER IMPLEMENTATION (COMMENTED OUT - PRESERVED PER USER REQUEST)
+          Preserved for reference, audit compliance, and instant rollback.
+         ========================================================================= */}
+      {false && (
+        <div className="space-y-6 pb-16 max-w-6xl mx-auto old-stepper-implementation hidden">
       {/* Top Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
         <div>
@@ -1513,7 +2280,9 @@ function UploadDocumentForm() {
         </div>
       )}
     </div>
-  )
+  )}
+</div>
+)
 }
 
 export default function UploadDocumentPage() {
