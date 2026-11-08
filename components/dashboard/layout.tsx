@@ -22,6 +22,8 @@ import {
   Newspaper,
   UserCog,
   FolderArchive,
+  PanelLeftClose,
+  PanelLeft,
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
@@ -70,6 +72,22 @@ const navigation: navigationType[] = [
   // { name: "Admins", href: "/dashboard/admins", icon: UserCog },
 ]
 
+import { createContext, useContext } from "react"
+
+interface SidebarContextType {
+  collapsed: boolean
+  setCollapsed: (collapsed: boolean) => void
+  toggleCollapsed: () => void
+}
+
+export const SidebarContext = createContext<SidebarContextType>({
+  collapsed: false,
+  setCollapsed: () => {},
+  toggleCollapsed: () => {},
+})
+
+export const useSidebar = () => useContext(SidebarContext)
+
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -82,6 +100,27 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isConnected } = useWebSocket()
   const queryClient = useQueryClient()
   const searchRef = useRef<HTMLDivElement>(null)
+
+  const isUploadPage = pathname === "/dashboard/documents/upload"
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const manuallyCollapsedRef = useRef(false)
+
+  // Auto-collapse sidebar when on the upload & send document envelope flow
+  useEffect(() => {
+    if (pathname === "/dashboard/documents/upload") {
+      setSidebarCollapsed(true)
+    } else if (!manuallyCollapsedRef.current) {
+      setSidebarCollapsed(false)
+    }
+  }, [pathname])
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      manuallyCollapsedRef.current = next
+      return next
+    })
+  }
 
   const { data: allUsersData } = useQuery({
     queryKey: ["global-search-users"],
@@ -202,89 +241,124 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {/* Mobile sidebar backdrop */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r bg-card transition-transform duration-300 lg:static lg:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+    <SidebarContext.Provider
+      value={{
+        collapsed: sidebarCollapsed,
+        setCollapsed: setSidebarCollapsed,
+        toggleCollapsed: toggleSidebar,
+      }}
+    >
+      <div className="flex h-screen overflow-hidden bg-background">
+        {/* Mobile sidebar backdrop */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
         )}
-      >
-        {/* Logo */}
-        <div className="flex h-16 items-center justify-between border-b px-6">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">CRM</span>
-            </div>
-            <span className="text-lg font-semibold">Admin Dashboard</span>
-          </div>
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
-          {navigationItems.map((item) => {
-            const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <item.icon className="h-5 w-5" />
-                  <span>{item.name}</span>
+        {/* Collapsible Sidebar */}
+        <aside
+          className={cn(
+            "fixed inset-y-0 left-0 z-50 flex flex-col border-r bg-card transition-all duration-300 ease-in-out lg:static",
+            sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
+            sidebarCollapsed
+              ? "lg:w-0 lg:border-r-0 lg:overflow-hidden lg:opacity-0 lg:pointer-events-none"
+              : "w-64 lg:w-64 lg:opacity-100",
+          )}
+        >
+          <div className="flex h-full w-64 flex-col">
+            {/* Logo & Collapse Toggle */}
+            <div className="flex h-16 items-center justify-between border-b px-6 shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+                  <span className="text-sm font-bold text-primary-foreground">CRM</span>
                 </div>
-                {!!item.badge && item.badge > 0 && (
-                  <Badge
+                <span className="text-lg font-semibold">Admin Dashboard</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="hidden lg:flex h-8 w-8 text-muted-foreground hover:text-foreground"
+                  onClick={toggleSidebar}
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+              {navigationItems.map((item) => {
+                const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
+                return (
+                  <Link
+                    key={item.name}
+                    href={item.href}
                     className={cn(
-                      "h-5 min-w-5 rounded-full px-1.5 text-xs",
-                      isActive ? "bg-accent-foreground text-accent" : "bg-accent text-accent-foreground",
+                      "flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
-                    {item.badge}
-                  </Badge>
-                )}
-              </Link>
-            )
-          })}
-        </nav>
+                    <div className="flex items-center gap-3">
+                      <item.icon className="h-5 w-5" />
+                      <span>{item.name}</span>
+                    </div>
+                    {!!item.badge && item.badge > 0 && (
+                      <Badge
+                        className={cn(
+                          "h-5 min-w-5 rounded-full px-1.5 text-xs",
+                          isActive ? "bg-accent-foreground text-accent" : "bg-accent text-accent-foreground",
+                        )}
+                      >
+                        {item.badge}
+                      </Badge>
+                    )}
+                  </Link>
+                )
+              })}
+            </nav>
 
-        {/* User section */}
-        <div className="border-t p-4">
-          <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback>{(user?.full_name || user?.fullname || user?.email || "U").substring(0, 2).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.full_name || user?.fullname || "Admin"}</p>
-              <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
+            {/* User section */}
+            <div className="border-t p-4 shrink-0">
+              <div className="flex items-center gap-3 rounded-lg px-3 py-2">
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback>{(user?.full_name || user?.fullname || user?.email || "U").substring(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{user?.full_name || user?.fullname || "Admin"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email || ""}</p>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top bar */}
-        <header className="flex h-16 items-center justify-between border-b bg-card px-6">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
-              <Menu className="h-5 w-5" />
-            </Button>
-            <div ref={searchRef} className="relative w-96 max-w-full">
+        {/* Main content */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Top bar - Hidden on dedicated DocuSign envelope setup page to mirror DocuSign */}
+          {!isUploadPage && (
+            <header className="flex h-16 items-center justify-between border-b bg-card px-6">
+              <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(true)}>
+                  <Menu className="h-5 w-5" />
+                </Button>
+                {sidebarCollapsed && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="hidden lg:flex h-9 w-9 text-muted-foreground hover:text-foreground"
+                    onClick={toggleSidebar}
+                    title="Expand sidebar"
+                  >
+                    <PanelLeft className="h-5 w-5" />
+                  </Button>
+                )}
+                <div ref={searchRef} className="relative w-96 max-w-full">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search companies, users..."
@@ -445,12 +519,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </DropdownMenu>
           </div>
         </header>
+      )}
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-6">
-          <ErrorBoundary>{children}</ErrorBoundary>
-        </main>
-      </div>
+      {/* Page content */}
+      <main className={cn("flex-1 overflow-y-auto", isUploadPage ? "p-0 bg-background" : "p-6")}>
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </main>
     </div>
-  )
+  </div>
+</SidebarContext.Provider>
+)
 }
