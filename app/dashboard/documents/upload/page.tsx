@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback, Suspense } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -58,6 +58,7 @@ import {
   Type,
   Hand,
   MousePointer,
+  Layers,
 } from "lucide-react"
 
 export interface SignatureZone {
@@ -101,15 +102,28 @@ function UploadDocumentForm() {
     return d.toISOString().split("T")[0]
   })
 
-  // Step 3: Signature Zone & Fields (Draggable independently with 1:1 instantaneous cursor tracking)
+  // Step 3: Signature Zone & Fields (DocuSign Multi-Page Stream Architecture)
   const [targetPage, setTargetPage] = useState<number>(1)
   const [detectedTotalPages, setDetectedTotalPages] = useState<number>(1)
+  const [loadedPdfDoc, setLoadedPdfDoc] = useState<any>(null)
+  const [showThumbnails, setShowThumbnails] = useState<boolean>(true)
+  const [currentVisiblePage, setCurrentVisiblePage] = useState<number>(1)
+  const [zoomMode, setZoomMode] = useState<"fit" | "custom">("fit")
+  const [zoomScale, setZoomScale] = useState<number>(1.0)
+  const [streamViewportWidth, setStreamViewportWidth] = useState<number>(800)
+
+  // Per-field page assignments (DocuSign multi-page placement)
+  const [signaturePage, setSignaturePage] = useState<number>(1)
+  const [fullNamePage, setFullNamePage] = useState<number>(1)
+  const [jobTitlePage, setJobTitlePage] = useState<number>(1)
+  const [emailPage, setEmailPage] = useState<number>(1)
+  const [datePage, setDatePage] = useState<number>(1)
+
   const [zone, setZone] = useState<SignatureZone>({ x: 0.30, y: 0.78, w: 0.40, h: 0.065 })
   const [fullNameZone, setFullNameZone] = useState<SignatureZone>({ x: 0.30, y: 0.58, w: 0.40, h: 0.045 })
   const [jobTitleZone, setJobTitleZone] = useState<SignatureZone>({ x: 0.30, y: 0.64, w: 0.40, h: 0.045 })
   const [emailZone, setEmailZone] = useState<SignatureZone>({ x: 0.30, y: 0.70, w: 0.40, h: 0.045 })
   const [dateZone, setDateZone] = useState<SignatureZone>({ x: 0.30, y: 0.86, w: 0.38, h: 0.045 })
-  const [zoomScale, setZoomScale] = useState<number>(1.0)
   const [docDimensions, setDocDimensions] = useState<{ width: number; height: number }>({
     width: 760,
     height: 1075,
@@ -177,7 +191,7 @@ function UploadDocumentForm() {
   const [reqDate, setReqDate] = useState(false)
   const [reqTermsCheck, setReqTermsCheck] = useState(false)
   const [customTextFields, setCustomTextFields] = useState<
-    Array<{ id: string; label: string; zone: SignatureZone }>
+    Array<{ id: string; label: string; page: number; zone: SignatureZone }>
   >([])
 
   // ── DocuSign Flow States (Set Up Envelope & Fields) ──
@@ -364,18 +378,16 @@ function UploadDocumentForm() {
     setDocDimensions({ width: 760, height: 1075 })
   }
 
-  // Stable callbacks for PdfPageCanvas so child memo never busts
+  // Stable callbacks for PdfPageCanvas
   const handlePdfLoadSuccess = useCallback(
     ({ numPages, width, height }: { numPages: number; width?: number; height?: number }) => {
       setDetectedTotalPages(numPages)
       setTargetPage((prev) => (prev > numPages ? 1 : prev))
       if (width && height && width > 0) {
         const aspect = height / width
-        const vpWidth = studioViewportRef.current?.clientWidth
-        const baseW = vpWidth ? Math.max(500, Math.min(840, vpWidth - 48)) : 760
         setDocDimensions({
-          width: baseW,
-          height: Math.round(baseW * aspect),
+          width: 760,
+          height: Math.round(760 * aspect),
         })
       }
     },
@@ -386,6 +398,149 @@ function UploadDocumentForm() {
     setDetectedTotalPages(total)
     setTargetPage((prev) => (prev > total ? 1 : prev))
   }, [])
+
+  // Load PDF Document ONCE so all pages and thumbnails share the same memory instance
+  useEffect(() => {
+    if (!selectedFile) {
+      setLoadedPdfDoc(null)
+      setDetectedTotalPages(1)
+      return
+    }
+
+    const isImg =
+      selectedFile.type.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(selectedFile.name)
+    if (isImg) {
+      setLoadedPdfDoc(null)
+      setDetectedTotalPages(1)
+      return
+    }
+
+    let isCancelled = false
+    async function loadDoc() {
+      try {
+        const { getPdfJs } = await import("@/components/pdf-page-canvas")
+        const pdfjs = await getPdfJs()
+        if (!pdfjs) return
+        const buffer = await selectedFile.arrayBuffer()
+        if (isCancelled) return
+        const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise
+        if (isCancelled) {
+          try {
+            doc.destroy?.()
+          } catch {}
+          return
+        }
+        setLoadedPdfDoc((prev: any) => {
+          if (prev && prev !== doc && typeof prev.destroy === "function") {
+            try {
+              prev.destroy()
+            } catch {}
+          }
+          return doc
+        })
+        setDetectedTotalPages(doc.numPages)
+        try {
+          const firstPage = await doc.getPage(1)
+          const vp = firstPage.getViewport({ scale: 1.0 })
+          setDocDimensions({
+            width: 760,
+            height: Math.round(760 * (vp.height / (vp.width || 1))),
+          })
+        } catch {}
+      } catch (err) {
+        console.error("Failed to load PDF doc stream:", err)
+      }
+    }
+
+    loadDoc()
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedFile])
+
+  // Measure studio viewport width dynamically with ResizeObserver
+  useEffect(() => {
+    const vp = studioViewportRef.current
+    if (!vp) return
+    const updateWidth = () => {
+      if (vp.clientWidth > 0) {
+        setStreamViewportWidth(vp.clientWidth)
+      }
+    }
+    updateWidth()
+    const ro = new ResizeObserver(updateWidth)
+    ro.observe(vp)
+    return () => ro.disconnect()
+  }, [])
+
+  // DocuSign Page Dimensions Calculation
+  const docAspect = docDimensions.height / (docDimensions.width || 1)
+  const pageWidth = useMemo(() => {
+    // Leave comfortable 48px padding (24px left, 24px right)
+    const baseAvailable = Math.max(480, streamViewportWidth - 48)
+    if (zoomMode === "fit") {
+      return baseAvailable
+    }
+    return Math.round(baseAvailable * zoomScale)
+  }, [streamViewportWidth, zoomMode, zoomScale])
+
+  const pageHeight = useMemo(() => {
+    return Math.round(pageWidth * (docAspect || 1.414))
+  }, [pageWidth, docAspect])
+
+  // Smooth scroll to target page in the document stream
+  const scrollToPage = useCallback((p: number) => {
+    setCurrentVisiblePage(p)
+    setTargetPage(p)
+    const el = document.getElementById(`doc-stream-page-${p}`)
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [])
+
+  // Track visible page as user scrolls down the document stream
+  const handleStreamScroll = useCallback(() => {
+    const vp = studioViewportRef.current
+    if (!vp) return
+    const pageEls = vp.querySelectorAll("[data-page-number]")
+    let mostVisiblePage = currentVisiblePage
+    let minDistance = Infinity
+    const vpRect = vp.getBoundingClientRect()
+    const vpCenter = vpRect.top + 180
+
+    pageEls.forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      const dist = Math.abs(rect.top - vpCenter)
+      if (dist < minDistance) {
+        minDistance = dist
+        const pNum = Number(el.getAttribute("data-page-number"))
+        if (!isNaN(pNum)) {
+          mostVisiblePage = pNum
+        }
+      }
+    })
+
+    if (mostVisiblePage !== currentVisiblePage) {
+      setCurrentVisiblePage(mostVisiblePage)
+    }
+  }, [currentVisiblePage])
+
+  // Helper: Count fields placed on a specific page
+  const getPageFieldCount = useCallback(
+    (p: number) => {
+      let count = 0
+      if (reqSignature && signaturePage === p) count++
+      if (reqFullName && fullNamePage === p) count++
+      if (reqJobTitle && jobTitlePage === p) count++
+      if (reqEmail && emailPage === p) count++
+      if (reqDate && datePage === p) count++
+      customTextFields.forEach((tf) => {
+        if ((tf.page || 1) === p) count++
+      })
+      return count
+    },
+    [reqSignature, signaturePage, reqFullName, fullNamePage, reqJobTitle, jobTitlePage, reqEmail, emailPage, reqDate, datePage, customTextFields]
+  )
 
   // Smooth mouse drag panning of the PDF document across the studio viewport
   const handleViewportMouseDown = (e: React.MouseEvent) => {
@@ -432,13 +587,13 @@ function UploadDocumentForm() {
     window.addEventListener("mouseup", onMouseUp)
   }
 
-
   // Mouse Drag to Move ANY Field (Zero lag, 1:1 instantaneous cursor tracking, RAF throttled)
   const handleFieldMouseDown = (
     e: React.MouseEvent,
     fieldName: string,
     currentFieldZone: SignatureZone,
-    setFieldZone: (updater: (prev: SignatureZone) => SignatureZone) => void
+    setFieldZone: (updater: (prev: SignatureZone) => SignatureZone) => void,
+    pageNum: number = 1
   ) => {
     if (canvasTool === "hand" || isSpacePressed) {
       return
@@ -446,6 +601,11 @@ function UploadDocumentForm() {
     e.stopPropagation()
     e.preventDefault()
     setActiveDragField(fieldName)
+
+    const pageContainer =
+      document.getElementById(`doc-page-sheet-${pageNum}`) || previewContainerRef.current
+    if (!pageContainer) return
+    const rect = pageContainer.getBoundingClientRect()
 
     const startX = e.clientX
     const startY = e.clientY
@@ -456,8 +616,7 @@ function UploadDocumentForm() {
     let latestEvent: MouseEvent | null = null
 
     const updatePosition = () => {
-      if (!latestEvent || !previewContainerRef.current) return
-      const rect = previewContainerRef.current.getBoundingClientRect()
+      if (!latestEvent) return
       const deltaX = (latestEvent.clientX - startX) / rect.width
       const deltaY = (latestEvent.clientY - startY) / rect.height
 
@@ -499,6 +658,7 @@ function UploadDocumentForm() {
     fieldName: string,
     currentFieldZone: SignatureZone,
     setFieldZone: (updater: (prev: SignatureZone) => SignatureZone) => void,
+    pageNum: number = 1,
     direction: "se" | "e" | "s" = "se"
   ) => {
     if (canvasTool === "hand" || isSpacePressed) {
@@ -507,6 +667,11 @@ function UploadDocumentForm() {
     e.stopPropagation()
     e.preventDefault()
     setActiveDragField(`resize-${fieldName}`)
+
+    const pageContainer =
+      document.getElementById(`doc-page-sheet-${pageNum}`) || previewContainerRef.current
+    if (!pageContainer) return
+    const rect = pageContainer.getBoundingClientRect()
 
     const startX = e.clientX
     const startY = e.clientY
@@ -519,8 +684,7 @@ function UploadDocumentForm() {
     let latestEvent: MouseEvent | null = null
 
     const updateResize = () => {
-      if (!latestEvent || !previewContainerRef.current) return
-      const rect = previewContainerRef.current.getBoundingClientRect()
+      if (!latestEvent) return
       const deltaX = (latestEvent.clientX - startX) / rect.width
       const deltaY = (latestEvent.clientY - startY) / rect.height
 
@@ -564,6 +728,352 @@ function UploadDocumentForm() {
 
     window.addEventListener("mousemove", onMouseMove)
     window.addEventListener("mouseup", onMouseUp)
+  }
+
+  // Helper: Render all fields designated for a specific page number in the continuous document stream
+  const renderFieldsForPage = (pageNum: number) => {
+    return (
+      <>
+        {/* Draggable & Resizable High-Visibility Signature Zone (DocuSign Style) */}
+        {reqSignature && signaturePage === pageNum && (
+          <div
+            data-canvas-field="true"
+            onMouseDown={(e) => handleFieldMouseDown(e, "signature", zone, setZone, pageNum)}
+            style={{
+              position: "absolute",
+              left: `${zone.x * 100}%`,
+              top: `${zone.y * 100}%`,
+              width: `${zone.w * 100}%`,
+              height: `${zone.h * 100}%`,
+              minHeight: "42px",
+              cursor: activeDragField === "signature" ? "grabbing" : "grab",
+            }}
+            className="border-2 border-amber-600 bg-[#fff9db] dark:bg-[#382b00] rounded-md p-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-bold shadow-xl ring-2 ring-amber-400/50 hover:bg-[#fff4be] transition-colors group select-none z-30"
+            title="Drag to position Signature • Use corner/edges to resize"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <div className="bg-[#ffcc00] text-amber-950 font-black text-[10px] px-2 py-0.5 rounded shadow-xs uppercase tracking-wider flex items-center gap-1 shrink-0 border border-amber-600/40">
+                <PenTool className="h-3 w-3 text-amber-950 stroke-[2.5]" />
+                <span>SIGN HERE</span>
+              </div>
+              <span className="truncate text-xs font-bold text-amber-950 dark:text-amber-100">
+                {recipientName || "Customer"}
+              </span>
+            </div>
+            <Move className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-300 opacity-80" />
+
+            {/* Resize handles */}
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, pageNum, "e")}
+              className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-amber-600/40 rounded-full"
+              title="Drag right edge to change width"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, pageNum, "s")}
+              className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-amber-600/40 rounded-full"
+              title="Drag bottom edge to change height"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, pageNum, "se")}
+              className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-amber-500 border-2 border-white dark:border-amber-950 rounded-xs shadow-md cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+              title="Drag corner to resize width & height"
+            >
+              <div className="w-1.5 h-1.5 bg-white dark:bg-amber-950 rounded-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Draggable & Resizable Full Name */}
+        {reqFullName && fullNamePage === pageNum && (
+          <div
+            data-canvas-field="true"
+            onMouseDown={(e) => handleFieldMouseDown(e, "fullName", fullNameZone, setFullNameZone, pageNum)}
+            style={{
+              position: "absolute",
+              left: `${fullNameZone.x * 100}%`,
+              top: `${fullNameZone.y * 100}%`,
+              width: `${fullNameZone.w * 100}%`,
+              height: `${fullNameZone.h * 100}%`,
+              minHeight: "30px",
+              cursor: activeDragField === "fullName" ? "grabbing" : "grab",
+            }}
+            className="border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/60 rounded-md px-2 flex items-center justify-between text-xs text-blue-950 dark:text-blue-100 font-semibold shadow-md ring-1 ring-blue-400/40 z-20 group select-none"
+            title="Drag to position Full Name • Use corner/edges to resize"
+          >
+            <span className="truncate">Full Name: {recipientName || "Name"}</span>
+            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+            {/* Resize handles */}
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, pageNum, "e")}
+              className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-blue-500/30 rounded-full"
+              title="Drag edge to change width"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, pageNum, "s")}
+              className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-blue-500/30 rounded-full"
+              title="Drag edge to change height"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, pageNum, "se")}
+              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-blue-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+              title="Drag corner to resize width & height"
+            >
+              <div className="w-1 h-1 bg-blue-600 rounded-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Draggable & Resizable Job Title */}
+        {reqJobTitle && jobTitlePage === pageNum && (
+          <div
+            data-canvas-field="true"
+            onMouseDown={(e) => handleFieldMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, pageNum)}
+            style={{
+              position: "absolute",
+              left: `${jobTitleZone.x * 100}%`,
+              top: `${jobTitleZone.y * 100}%`,
+              width: `${jobTitleZone.w * 100}%`,
+              height: `${jobTitleZone.h * 100}%`,
+              minHeight: "30px",
+              cursor: activeDragField === "jobTitle" ? "grabbing" : "grab",
+            }}
+            className="border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 rounded-md px-2 flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-100 font-semibold shadow-md ring-1 ring-indigo-400/40 z-20 group select-none"
+            title="Drag to position Job Title • Use corner/edges to resize"
+          >
+            <span className="truncate">Job Title: Director</span>
+            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+            {/* Resize handles */}
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, pageNum, "e")}
+              className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-indigo-500/30 rounded-full"
+              title="Drag edge to change width"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, pageNum, "s")}
+              className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-indigo-500/30 rounded-full"
+              title="Drag edge to change height"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, pageNum, "se")}
+              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-indigo-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+              title="Drag corner to resize width & height"
+            >
+              <div className="w-1 h-1 bg-indigo-600 rounded-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Draggable & Resizable Email */}
+        {reqEmail && emailPage === pageNum && (
+          <div
+            data-canvas-field="true"
+            onMouseDown={(e) => handleFieldMouseDown(e, "email", emailZone, setEmailZone, pageNum)}
+            style={{
+              position: "absolute",
+              left: `${emailZone.x * 100}%`,
+              top: `${emailZone.y * 100}%`,
+              width: `${emailZone.w * 100}%`,
+              height: `${emailZone.h * 100}%`,
+              minHeight: "30px",
+              cursor: activeDragField === "email" ? "grabbing" : "grab",
+            }}
+            className="border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 rounded-md px-2 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-100 font-semibold shadow-md ring-1 ring-emerald-400/40 z-20 group select-none"
+            title="Drag to position Email • Use corner/edges to resize"
+          >
+            <span className="truncate">Email: {recipientEmail || "email@company.com"}</span>
+            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+            {/* Resize handles */}
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, pageNum, "e")}
+              className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-emerald-500/30 rounded-full"
+              title="Drag edge to change width"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, pageNum, "s")}
+              className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-emerald-500/30 rounded-full"
+              title="Drag edge to change height"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, pageNum, "se")}
+              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+              title="Drag corner to resize width & height"
+            >
+              <div className="w-1 h-1 bg-emerald-600 rounded-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Draggable & Resizable Date */}
+        {reqDate && datePage === pageNum && (
+          <div
+            data-canvas-field="true"
+            onMouseDown={(e) => handleFieldMouseDown(e, "date", dateZone, setDateZone, pageNum)}
+            style={{
+              position: "absolute",
+              left: `${dateZone.x * 100}%`,
+              top: `${dateZone.y * 100}%`,
+              width: `${dateZone.w * 100}%`,
+              height: `${dateZone.h * 100}%`,
+              minHeight: "30px",
+              cursor: activeDragField === "date" ? "grabbing" : "grab",
+            }}
+            className="border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/60 rounded-md px-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-semibold shadow-md ring-1 ring-amber-400/40 z-20 group select-none"
+            title="Drag to position Date • Use corner/edges to resize"
+          >
+            <span className="truncate">Date Signed</span>
+            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+            {/* Resize handles */}
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, pageNum, "e")}
+              className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-amber-500/30 rounded-full"
+              title="Drag edge to change width"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, pageNum, "s")}
+              className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-amber-500/30 rounded-full"
+              title="Drag edge to change height"
+            />
+            <div
+              onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, pageNum, "se")}
+              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-amber-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+              title="Drag corner to resize width & height"
+            >
+              <div className="w-1 h-1 bg-amber-600 rounded-full" />
+            </div>
+          </div>
+        )}
+
+        {/* Draggable & Resizable Custom Text Fields */}
+        {customTextFields
+          .filter((tf) => (tf.page || 1) === pageNum)
+          .map((tf, idx) => (
+            <div
+              data-canvas-field="true"
+              key={tf.id}
+              onMouseDown={(e) =>
+                handleFieldMouseDown(
+                  e,
+                  `customText-${tf.id}`,
+                  tf.zone,
+                  (updater) => {
+                    setCustomTextFields((prev) =>
+                      prev.map((item) =>
+                        item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
+                      )
+                    )
+                  },
+                  pageNum
+                )
+              }
+              style={{
+                position: "absolute",
+                left: `${tf.zone.x * 100}%`,
+                top: `${tf.zone.y * 100}%`,
+                width: `${tf.zone.w * 100}%`,
+                height: `${tf.zone.h * 100}%`,
+                minHeight: "30px",
+                cursor: activeDragField === `customText-${tf.id}` ? "grabbing" : "grab",
+              }}
+              className="border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/60 rounded-md px-2 flex items-center justify-between text-xs text-purple-950 dark:text-purple-100 font-semibold shadow-md ring-1 ring-purple-400/40 z-20 group select-none"
+              title="Drag to position Text Field • Use corner/edges to resize"
+            >
+              <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
+                <Type className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                <input
+                  type="text"
+                  value={tf.label}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    setCustomTextFields((prev) =>
+                      prev.map((item) => (item.id === tf.id ? { ...item, label: val } : item))
+                    )
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => {
+                    e.stopPropagation()
+                    if (e.key === "Enter" || e.key === "Escape") {
+                      (e.target as HTMLInputElement).blur()
+                    }
+                  }}
+                  placeholder={`Text Field ${idx + 1}`}
+                  title="Click to edit field label directly"
+                  className="w-full bg-transparent border-0 p-0 text-xs font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
+                />
+              </div>
+              <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300 cursor-grab" />
+
+              {/* Resize handles */}
+              <div
+                onMouseDown={(e) =>
+                  handleFieldResizeMouseDown(
+                    e,
+                    `customText-${tf.id}`,
+                    tf.zone,
+                    (updater) => {
+                      setCustomTextFields((prev) =>
+                        prev.map((item) =>
+                          item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
+                        )
+                      )
+                    },
+                    pageNum,
+                    "e"
+                  )
+                }
+                className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-purple-500/30 rounded-full"
+                title="Drag edge to change width"
+              />
+              <div
+                onMouseDown={(e) =>
+                  handleFieldResizeMouseDown(
+                    e,
+                    `customText-${tf.id}`,
+                    tf.zone,
+                    (updater) => {
+                      setCustomTextFields((prev) =>
+                        prev.map((item) =>
+                          item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
+                        )
+                      )
+                    },
+                    pageNum,
+                    "s"
+                  )
+                }
+                className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-purple-500/30 rounded-full"
+                title="Drag edge to change height"
+              />
+              <div
+                onMouseDown={(e) =>
+                  handleFieldResizeMouseDown(
+                    e,
+                    `customText-${tf.id}`,
+                    tf.zone,
+                    (updater) => {
+                      setCustomTextFields((prev) =>
+                        prev.map((item) =>
+                          item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
+                        )
+                      )
+                    },
+                    pageNum,
+                    "se"
+                  )
+                }
+                className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                title="Drag corner to resize width & height"
+              >
+                <div className="w-1 h-1 bg-purple-600 rounded-full" />
+              </div>
+            </div>
+          ))}
+      </>
+    )
   }
 
   // Validation helpers for linear progression
@@ -713,7 +1223,7 @@ function UploadDocumentForm() {
         if (reqFullName) {
           fields.push({
             id: "f_name",
-            page: targetPage,
+            page: fullNamePage || targetPage || 1,
             type: "full_name",
             label: "Confirm full name",
             required: true,
@@ -725,7 +1235,7 @@ function UploadDocumentForm() {
         if (reqJobTitle) {
           fields.push({
             id: "f_title",
-            page: targetPage,
+            page: jobTitlePage || targetPage || 1,
             type: "job_title",
             label: "Enter job title",
             required: true,
@@ -737,7 +1247,7 @@ function UploadDocumentForm() {
         if (reqEmail) {
           fields.push({
             id: "f_email",
-            page: targetPage,
+            page: emailPage || targetPage || 1,
             type: "email",
             label: "Confirm email",
             required: true,
@@ -749,7 +1259,7 @@ function UploadDocumentForm() {
         if (reqSignature) {
           fields.push({
             id: "f_sign",
-            page: targetPage,
+            page: signaturePage || targetPage || 1,
             type: "signature",
             label: "Tap to sign",
             required: true,
@@ -760,7 +1270,7 @@ function UploadDocumentForm() {
         if (reqDate) {
           fields.push({
             id: "f_date",
-            page: targetPage,
+            page: datePage || targetPage || 1,
             type: "date_signed",
             label: "Date signed",
             required: true,
@@ -783,7 +1293,7 @@ function UploadDocumentForm() {
         customTextFields.forEach((tf, idx) => {
           fields.push({
             id: `f_text_${tf.id || idx + 1}`,
-            page: targetPage,
+            page: tf.page || targetPage || 1,
             type: "text",
             label: tf.label.trim() || `Text Field ${idx + 1}`,
             required: false,
@@ -793,7 +1303,7 @@ function UploadDocumentForm() {
         })
 
         await apiClient.sendForSignature(docId, {
-          target_page: targetPage,
+          target_page: signaturePage || targetPage || 1,
           signature_zone: zone,
           fields,
           recipient_name: recipientName || selectedBusiness.company_name,
@@ -1401,44 +1911,224 @@ function UploadDocumentForm() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between py-1 border-b border-border/50">
-                        <div className="flex items-center gap-2 text-xs font-medium">
-                          <PenTool className="h-3.5 w-3.5 text-primary" />
-                          Signature Box (Required)
+                      {/* Signature */}
+                      <div className="flex flex-col py-1.5 border-b border-border/50 gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-medium">
+                            <PenTool className="h-3.5 w-3.5 text-primary" />
+                            Signature Box (Required)
+                          </div>
+                          <Badge className="bg-primary/10 text-primary text-[10px]">Mandatory</Badge>
                         </div>
-                        <Badge className="bg-primary/10 text-primary text-[10px]">Mandatory</Badge>
+                        {detectedTotalPages > 1 && (
+                          <div className="flex items-center justify-between text-[11px] pt-0.5">
+                            <span className="text-muted-foreground">Placement:</span>
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={String(signaturePage)}
+                                onValueChange={(val) => {
+                                  const p = Number(val)
+                                  setSignaturePage(p)
+                                  scrollToPage(p)
+                                }}
+                              >
+                                <SelectTrigger className="h-6 w-20 px-1.5 text-xs bg-background">
+                                  <SelectValue placeholder={`Page ${signaturePage}`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                    <SelectItem key={p} value={String(p)} className="text-xs">
+                                      Page {p}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <button
+                                type="button"
+                                onClick={() => scrollToPage(signaturePage)}
+                                className="text-[10px] text-primary hover:underline font-medium"
+                              >
+                                Jump
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center justify-between py-1 border-b border-border/50">
-                        <div className="flex items-center gap-2 text-xs font-medium">
-                          <UserCheck className="h-3.5 w-3.5 text-blue-600" />
-                          Full Name Field
+                      {/* Full Name */}
+                      <div className="flex flex-col py-1.5 border-b border-border/50 gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-medium">
+                            <UserCheck className="h-3.5 w-3.5 text-blue-600" />
+                            Full Name Field
+                          </div>
+                          <Switch checked={reqFullName} onCheckedChange={setReqFullName} />
                         </div>
-                        <Switch checked={reqFullName} onCheckedChange={setReqFullName} />
+                        {reqFullName && detectedTotalPages > 1 && (
+                          <div className="flex items-center justify-between text-[11px] pt-0.5">
+                            <span className="text-muted-foreground">Placement:</span>
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={String(fullNamePage)}
+                                onValueChange={(val) => {
+                                  const p = Number(val)
+                                  setFullNamePage(p)
+                                  scrollToPage(p)
+                                }}
+                              >
+                                <SelectTrigger className="h-6 w-20 px-1.5 text-xs bg-background">
+                                  <SelectValue placeholder={`Page ${fullNamePage}`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                    <SelectItem key={p} value={String(p)} className="text-xs">
+                                      Page {p}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <button
+                                type="button"
+                                onClick={() => scrollToPage(fullNamePage)}
+                                className="text-[10px] text-primary hover:underline font-medium"
+                              >
+                                Jump
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center justify-between py-1 border-b border-border/50">
-                        <div className="flex items-center gap-2 text-xs font-medium">
-                          <Briefcase className="h-3.5 w-3.5 text-indigo-600" />
-                          Job Title Field
+                      {/* Job Title */}
+                      <div className="flex flex-col py-1.5 border-b border-border/50 gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-medium">
+                            <Briefcase className="h-3.5 w-3.5 text-indigo-600" />
+                            Job Title Field
+                          </div>
+                          <Switch checked={reqJobTitle} onCheckedChange={setReqJobTitle} />
                         </div>
-                        <Switch checked={reqJobTitle} onCheckedChange={setReqJobTitle} />
+                        {reqJobTitle && detectedTotalPages > 1 && (
+                          <div className="flex items-center justify-between text-[11px] pt-0.5">
+                            <span className="text-muted-foreground">Placement:</span>
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={String(jobTitlePage)}
+                                onValueChange={(val) => {
+                                  const p = Number(val)
+                                  setJobTitlePage(p)
+                                  scrollToPage(p)
+                                }}
+                              >
+                                <SelectTrigger className="h-6 w-20 px-1.5 text-xs bg-background">
+                                  <SelectValue placeholder={`Page ${jobTitlePage}`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                    <SelectItem key={p} value={String(p)} className="text-xs">
+                                      Page {p}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <button
+                                type="button"
+                                onClick={() => scrollToPage(jobTitlePage)}
+                                className="text-[10px] text-primary hover:underline font-medium"
+                              >
+                                Jump
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center justify-between py-1 border-b border-border/50">
-                        <div className="flex items-center gap-2 text-xs font-medium">
-                          <Mail className="h-3.5 w-3.5 text-emerald-600" />
-                          Email Field
+                      {/* Email */}
+                      <div className="flex flex-col py-1.5 border-b border-border/50 gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-medium">
+                            <Mail className="h-3.5 w-3.5 text-emerald-600" />
+                            Email Field
+                          </div>
+                          <Switch checked={reqEmail} onCheckedChange={setReqEmail} />
                         </div>
-                        <Switch checked={reqEmail} onCheckedChange={setReqEmail} />
+                        {reqEmail && detectedTotalPages > 1 && (
+                          <div className="flex items-center justify-between text-[11px] pt-0.5">
+                            <span className="text-muted-foreground">Placement:</span>
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={String(emailPage)}
+                                onValueChange={(val) => {
+                                  const p = Number(val)
+                                  setEmailPage(p)
+                                  scrollToPage(p)
+                                }}
+                              >
+                                <SelectTrigger className="h-6 w-20 px-1.5 text-xs bg-background">
+                                  <SelectValue placeholder={`Page ${emailPage}`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                    <SelectItem key={p} value={String(p)} className="text-xs">
+                                      Page {p}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <button
+                                type="button"
+                                onClick={() => scrollToPage(emailPage)}
+                                className="text-[10px] text-primary hover:underline font-medium"
+                              >
+                                Jump
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center justify-between py-1 border-b border-border/50">
-                        <div className="flex items-center gap-2 text-xs font-medium">
-                          <Calendar className="h-3.5 w-3.5 text-amber-600" />
-                          Date Signed Field
+                      {/* Date Signed */}
+                      <div className="flex flex-col py-1.5 border-b border-border/50 gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-medium">
+                            <Calendar className="h-3.5 w-3.5 text-amber-600" />
+                            Date Signed Field
+                          </div>
+                          <Switch checked={reqDate} onCheckedChange={setReqDate} />
                         </div>
-                        <Switch checked={reqDate} onCheckedChange={setReqDate} />
+                        {reqDate && detectedTotalPages > 1 && (
+                          <div className="flex items-center justify-between text-[11px] pt-0.5">
+                            <span className="text-muted-foreground">Placement:</span>
+                            <div className="flex items-center gap-1.5">
+                              <Select
+                                value={String(datePage)}
+                                onValueChange={(val) => {
+                                  const p = Number(val)
+                                  setDatePage(p)
+                                  scrollToPage(p)
+                                }}
+                              >
+                                <SelectTrigger className="h-6 w-20 px-1.5 text-xs bg-background">
+                                  <SelectValue placeholder={`Page ${datePage}`} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                    <SelectItem key={p} value={String(p)} className="text-xs">
+                                      Page {p}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <button
+                                type="button"
+                                onClick={() => scrollToPage(datePage)}
+                                className="text-[10px] text-primary hover:underline font-medium"
+                              >
+                                Jump
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Custom Text Fields Section (Direct on-demand additions without toggle) */}
@@ -1456,6 +2146,7 @@ function UploadDocumentForm() {
                                 {
                                   id: String(Date.now()) + Math.random().toString(36).substring(2, 6),
                                   label: `Text Field ${prev.length + 1}`,
+                                  page: currentVisiblePage || 1,
                                   zone: {
                                     x: 0.30,
                                     y: Math.min(0.85, 0.48 + prev.length * 0.06),
@@ -1508,6 +2199,43 @@ function UploadDocumentForm() {
                                   placeholder="e.g. Account Number, Notes"
                                   className="h-6 text-xs bg-background"
                                 />
+                                {detectedTotalPages > 1 && (
+                                  <div className="flex items-center justify-between text-[11px] pt-0.5">
+                                    <span className="text-muted-foreground">Page:</span>
+                                    <div className="flex items-center gap-1.5">
+                                      <Select
+                                        value={String(tf.page || 1)}
+                                        onValueChange={(val) => {
+                                          const p = Number(val)
+                                          setCustomTextFields((prev) =>
+                                            prev.map((item) =>
+                                              item.id === tf.id ? { ...item, page: p } : item
+                                            )
+                                          )
+                                          scrollToPage(p)
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-5 w-20 px-1.5 text-[11px] bg-background">
+                                          <SelectValue placeholder={`Page ${tf.page || 1}`} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                            <SelectItem key={p} value={String(p)} className="text-xs">
+                                              Page {p}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                      <button
+                                        type="button"
+                                        onClick={() => scrollToPage(tf.page || 1)}
+                                        className="text-[10px] text-primary hover:underline font-medium"
+                                      >
+                                        Jump
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1519,17 +2247,33 @@ function UploadDocumentForm() {
 
                 {/* Right: PDF Canvas & Controls */}
                 <div className="lg:col-span-8 space-y-3">
-                  {/* Canvas Toolbar */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border bg-card text-xs">
-                    <div className="flex flex-wrap items-center gap-3">
+                  {/* DocuSign Studio Top Toolbar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-2.5 rounded-xl border bg-card text-xs">
+                    {/* Left: Thumbnail toggle + Document switcher + Page indicator */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant={showThumbnails ? "secondary" : "outline"}
+                        size="sm"
+                        onClick={() => setShowThumbnails((v) => !v)}
+                        className="h-7 px-2.5 text-xs flex items-center gap-1.5"
+                        title="Toggle Page Thumbnails Strip"
+                      >
+                        <Layers className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Thumbnails</span>
+                        <Badge variant="outline" className="h-4 px-1 text-[10px] ml-0.5">
+                          {detectedTotalPages}
+                        </Badge>
+                      </Button>
+
                       {uploadedFiles.length > 1 && (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-semibold text-foreground">Document:</span>
+                        <div className="flex items-center gap-1.5 border-l pl-2">
+                          <span className="font-semibold text-foreground hidden sm:inline">Doc:</span>
                           <Select
                             value={String(activeFileIndex)}
                             onValueChange={(val) => handleSelectActiveDocument(Number(val))}
                           >
-                            <SelectTrigger className="h-7 text-xs w-36 sm:w-44 bg-card border-input">
+                            <SelectTrigger className="h-7 text-xs w-32 sm:w-40 bg-card border-input">
                               <SelectValue placeholder="Select Document" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1543,522 +2287,280 @@ function UploadDocumentForm() {
                         </div>
                       )}
 
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-foreground text-xs sm:text-sm">Page:</span>
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={targetPage <= 1}
-                            onClick={() => setTargetPage((p) => Math.max(1, p - 1))}
-                            className="h-7 w-7 p-0"
-                            title="Previous Page"
-                          >
-                            <ChevronLeft className="h-3.5 w-3.5" />
-                          </Button>
+                      <div className="flex items-center gap-1 border-l pl-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={currentVisiblePage <= 1}
+                          onClick={() => scrollToPage(Math.max(1, currentVisiblePage - 1))}
+                          className="h-7 w-7 p-0"
+                          title="Previous Page"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
 
-                          {detectedTotalPages > 1 ? (
-                            <Select
-                              value={String(targetPage)}
-                              onValueChange={(val) => setTargetPage(Number(val))}
-                            >
-                              <SelectTrigger className="h-7 min-w-[100px] text-xs font-mono font-medium px-2 py-0 bg-background border-input">
-                                <SelectValue placeholder={`Page ${targetPage}`} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
-                                  <SelectItem key={p} value={String(p)} className="text-xs">
-                                    Page {p} of {detectedTotalPages}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className="px-2 font-mono font-medium text-xs">
-                              {targetPage} / {detectedTotalPages || 1}
-                            </span>
-                          )}
+                        <span className="px-1.5 text-xs font-medium text-foreground whitespace-nowrap">
+                          Page <span className="font-bold">{currentVisiblePage}</span> of {detectedTotalPages}
+                        </span>
 
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={targetPage >= (detectedTotalPages || 1)}
-                            onClick={() => setTargetPage((p) => Math.min(detectedTotalPages || 1, p + 1))}
-                            className="h-7 w-7 p-0"
-                            title="Next Page"
-                          >
-                            <ChevronRight className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={currentVisiblePage >= detectedTotalPages}
+                          onClick={() => scrollToPage(Math.min(detectedTotalPages, currentVisiblePage + 1))}
+                          className="h-7 w-7 p-0"
+                          title="Next Page"
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
 
-                    {/* Tool Switcher & Smooth Zoom Controls */}
-                    <div className="flex items-center gap-2">
-                      {/* Tool Switcher: Select Fields vs Pan Document */}
+                    {/* Right: DocuSign Zoom & View Controls */}
+                    <div className="flex items-center gap-1.5">
+                      {/* Tool Switcher */}
                       <div className="flex items-center rounded-lg border bg-muted/60 p-0.5 gap-0.5">
                         <Button
                           type="button"
                           variant={canvasTool === "select" ? "default" : "ghost"}
                           size="sm"
                           onClick={() => setCanvasTool("select")}
-                          className={`h-7 px-2.5 text-xs font-medium gap-1.5 ${
+                          className={`h-6 px-2 text-xs font-medium gap-1 ${
                             canvasTool === "select"
                               ? "bg-background text-foreground shadow-xs"
                               : "text-muted-foreground hover:text-foreground"
                           }`}
                           title="Select & Move Fields (V)"
                         >
-                          <MousePointer className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">Select</span>
+                          <MousePointer className="h-3 w-3" />
+                          <span className="hidden md:inline text-[11px]">Select</span>
                         </Button>
                         <Button
                           type="button"
                           variant={canvasTool === "hand" ? "default" : "ghost"}
                           size="sm"
                           onClick={() => setCanvasTool("hand")}
-                          className={`h-7 px-2.5 text-xs font-medium gap-1.5 ${
+                          className={`h-6 px-2 text-xs font-medium gap-1 ${
                             canvasTool === "hand"
                               ? "bg-background text-foreground shadow-xs"
                               : "text-muted-foreground hover:text-foreground"
                           }`}
                           title="Pan Document (H or hold Spacebar)"
                         >
-                          <Hand className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">Pan</span>
+                          <Hand className="h-3 w-3" />
+                          <span className="hidden md:inline text-[11px]">Pan</span>
                         </Button>
                       </div>
 
-                      {/* Smooth Zoom Controls */}
-                      <div className="flex items-center gap-1 border-l pl-2">
+                      {/* Fit to Width (DocuSign Standard) */}
+                      <Button
+                        type="button"
+                        variant={zoomMode === "fit" ? "secondary" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setZoomMode("fit")
+                          setZoomScale(1.0)
+                        }}
+                        className="h-7 px-2.5 text-xs font-medium flex items-center gap-1 border-input"
+                        title="Fit Document to Full Available Width (DocuSign Standard)"
+                      >
+                        <Maximize2 className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Fit Width</span>
+                      </Button>
+
+                      {/* Zoom Controls */}
+                      <div className="flex items-center gap-1 border-l pl-1.5">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => setZoomScale((z) => Math.max(0.5, Number((z - 0.15).toFixed(2))))}
+                          onClick={() => {
+                            setZoomMode("custom")
+                            setZoomScale((z) => Math.max(0.4, Number((z - 0.15).toFixed(2))))
+                          }}
                           className="h-7 w-7 p-0"
                           title="Zoom Out (-15%)"
                         >
                           <ZoomOut className="h-3.5 w-3.5" />
                         </Button>
+
                         <Select
-                          value={String(Math.round(zoomScale * 100))}
-                          onValueChange={(val) => setZoomScale(Number(val) / 100)}
+                          value={zoomMode === "fit" ? "fit" : String(Math.round(zoomScale * 100))}
+                          onValueChange={(val) => {
+                            if (val === "fit") {
+                              setZoomMode("fit")
+                              setZoomScale(1.0)
+                            } else {
+                              setZoomMode("custom")
+                              setZoomScale(Number(val) / 100)
+                            }
+                          }}
                         >
-                          <SelectTrigger className="h-7 w-[78px] px-2 font-mono text-xs bg-background border-input">
-                            <SelectValue placeholder={`${Math.round(zoomScale * 100)}%`} />
+                          <SelectTrigger className="h-7 w-[84px] px-2 font-mono text-xs bg-background border-input">
+                            <SelectValue placeholder={zoomMode === "fit" ? "Fit" : `${Math.round(zoomScale * 100)}%`} />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="fit">Fit Width</SelectItem>
                             <SelectItem value="50">50%</SelectItem>
                             <SelectItem value="75">75%</SelectItem>
                             <SelectItem value="90">90%</SelectItem>
                             <SelectItem value="100">100%</SelectItem>
-                            <SelectItem value="115">115%</SelectItem>
-                            <SelectItem value="130">130%</SelectItem>
+                            <SelectItem value="125">125%</SelectItem>
                             <SelectItem value="150">150%</SelectItem>
                             <SelectItem value="175">175%</SelectItem>
                             <SelectItem value="200">200%</SelectItem>
                           </SelectContent>
                         </Select>
+
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => setZoomScale((z) => Math.min(2.0, Number((z + 0.15).toFixed(2))))}
+                          onClick={() => {
+                            setZoomMode("custom")
+                            setZoomScale((z) => Math.min(2.5, Number((z + 0.15).toFixed(2))))
+                          }}
                           className="h-7 w-7 p-0"
                           title="Zoom In (+15%)"
                         >
                           <ZoomIn className="h-3.5 w-3.5" />
                         </Button>
-                        {Math.round(zoomScale * 100) !== 100 && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setZoomScale(1.0)}
-                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                            title="Reset to 100% Fit"
-                          >
-                            Fit
-                          </Button>
-                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Interactive Document Studio Viewport */}
-                  <div
-                    ref={studioViewportRef}
-                    onMouseDown={handleViewportMouseDown}
-                    className={cn(
-                      "w-full overflow-auto bg-slate-200/80 dark:bg-slate-950/80 rounded-xl border min-h-[640px] max-h-[820px] shadow-inner relative transition-colors select-none",
-                      canvasTool === "hand" || isSpacePressed
-                        ? isPanning ? "cursor-grabbing" : "cursor-grab"
-                        : "cursor-default"
+                  {/* DocuSign Studio Workspace (Thumbnails Strip + Continuous Document Stream) */}
+                  <div className="flex gap-3 w-full items-start">
+                    {/* Left Thumbnails Rail */}
+                    {showThumbnails && (
+                      <div className="w-24 sm:w-28 bg-slate-100 dark:bg-slate-900 border rounded-xl p-2 flex flex-col gap-2.5 shrink-0 overflow-y-auto min-h-[640px] max-h-[820px] shadow-xs select-none">
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-center px-1">
+                          Pages ({detectedTotalPages})
+                        </div>
+                        {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => {
+                          const isActive = currentVisiblePage === p
+                          const fieldCount = getPageFieldCount(p)
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => scrollToPage(p)}
+                              className={cn(
+                                "group relative flex flex-col items-center rounded-md border p-1 bg-white dark:bg-slate-950 transition-all text-left w-full cursor-pointer",
+                                isActive
+                                  ? "border-primary ring-2 ring-primary/40 shadow-sm"
+                                  : "border-border hover:border-slate-400 dark:hover:border-slate-700 opacity-80 hover:opacity-100"
+                              )}
+                              title={`Jump to Page ${p}`}
+                            >
+                              <div className="w-full aspect-[1/1.414] overflow-hidden rounded-xs bg-slate-50 dark:bg-slate-900 flex items-center justify-center pointer-events-none relative border border-slate-200/50 dark:border-slate-800">
+                                <PdfPageCanvas
+                                  pdfDoc={loadedPdfDoc}
+                                  file={selectedFile}
+                                  pageNumber={p}
+                                  targetWidth={92}
+                                  className="border-0 shadow-none rounded-none w-full h-full pointer-events-none"
+                                />
+                              </div>
+                              <div className="mt-1 flex items-center justify-between w-full px-1">
+                                <span
+                                  className={cn(
+                                    "text-[10px] font-mono font-bold",
+                                    isActive ? "text-primary" : "text-muted-foreground"
+                                  )}
+                                >
+                                  {p}
+                                </span>
+                                {fieldCount > 0 && (
+                                  <span
+                                    className="w-2 h-2 rounded-full bg-amber-500"
+                                    title={`${fieldCount} field(s) on Page ${p}`}
+                                  />
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
                     )}
-                  >
+
+                    {/* Continuous Document Stream Viewport */}
                     <div
-                      className="min-w-full min-h-full p-6 flex items-start justify-center"
-                      data-pan-canvas="true"
+                      ref={studioViewportRef}
+                      onScroll={handleStreamScroll}
+                      onMouseDown={handleViewportMouseDown}
+                      className={cn(
+                        "flex-1 w-full overflow-auto bg-slate-200/80 dark:bg-slate-950/80 rounded-xl border min-h-[640px] max-h-[820px] shadow-inner p-6 flex flex-col items-center select-none transition-colors",
+                        canvasTool === "hand" || isSpacePressed
+                          ? isPanning ? "cursor-grabbing" : "cursor-grab"
+                          : "cursor-default"
+                      )}
                     >
-                      <div
-                        ref={previewContainerRef}
-                        data-doc-sheet="true"
-                        style={{
-                          width: `${Math.round(docDimensions.width * zoomScale)}px`,
-                          height: `${Math.round(docDimensions.height * zoomScale)}px`,
-                          transition: isPanning ? "none" : "width 0.15s ease-out, height 0.15s ease-out",
-                        }}
-                        className={cn(
-                          "relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none shrink-0",
-                          canvasTool === "hand" || isSpacePressed ? "cursor-grab active:cursor-grabbing" : "cursor-default"
-                        )}
-                      >
-                        {selectedFile ? (
-                          <PdfPageCanvas
-                            file={selectedFile}
-                            pageNumber={targetPage}
-                            targetWidth={Math.round(docDimensions.width * zoomScale)}
-                            className="border-0 shadow-none rounded-none"
-                            onLoadSuccess={handlePdfLoadSuccess}
-                            onTotalPages={handlePdfTotalPages}
-                          />
-                        ) : (
-                          <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
-                            No document loaded
-                          </div>
-                        )}
+                      {selectedFile ? (
+                        Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => {
+                          const fieldCount = getPageFieldCount(p)
+                          return (
+                            <div
+                              key={p}
+                              id={`doc-stream-page-${p}`}
+                              data-page-number={p}
+                              className="flex flex-col items-center mb-8 last:mb-2 shrink-0"
+                            >
+                              {/* DocuSign Page Header Banner */}
+                              <div
+                                style={{ width: `${pageWidth}px` }}
+                                className="mb-1.5 px-1 flex items-center justify-between text-xs text-muted-foreground select-none"
+                              >
+                                <span className="font-semibold tracking-wide flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full bg-primary/70 inline-block" />
+                                  PAGE {p} OF {detectedTotalPages}
+                                </span>
+                                <span className="text-[11px] opacity-80">
+                                  {fieldCount > 0 ? `${fieldCount} field(s)` : "No fields"}
+                                </span>
+                              </div>
 
-                    {/* Draggable & Resizable High-Visibility Signature Zone (DocuSign Style) */}
-                    <div
-                      data-canvas-field="true"
-                      onMouseDown={(e) => handleFieldMouseDown(e, "signature", zone, setZone)}
-                      style={{
-                        position: "absolute",
-                        left: `${zone.x * 100}%`,
-                        top: `${zone.y * 100}%`,
-                        width: `${zone.w * 100}%`,
-                        height: `${zone.h * 100}%`,
-                        minHeight: "42px",
-                        cursor: activeDragField === "signature" ? "grabbing" : "grab",
-                      }}
-                      className="border-2 border-amber-600 bg-[#fff9db] dark:bg-[#382b00] rounded-md p-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-bold shadow-xl ring-2 ring-amber-400/50 hover:bg-[#fff4be] transition-colors group select-none z-30"
-                      title="Drag to position Signature • Use corner/edges to resize"
-                    >
-                      <div className="flex items-center gap-2 truncate">
-                        <div className="bg-[#ffcc00] text-amber-950 font-black text-[10px] px-2 py-0.5 rounded shadow-xs uppercase tracking-wider flex items-center gap-1 shrink-0 border border-amber-600/40">
-                          <PenTool className="h-3 w-3 text-amber-950 stroke-[2.5]" />
-                          <span>SIGN HERE</span>
+                              {/* Page Sheet Container */}
+                              <div
+                                id={`doc-page-sheet-${p}`}
+                                data-doc-sheet="true"
+                                style={{
+                                  width: `${pageWidth}px`,
+                                  height: `${pageHeight}px`,
+                                  transition: isPanning ? "none" : "width 0.12s ease-out, height 0.12s ease-out",
+                                }}
+                                className={cn(
+                                  "relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none shrink-0",
+                                  canvasTool === "hand" || isSpacePressed
+                                    ? isPanning ? "cursor-grabbing" : "cursor-grab"
+                                    : "cursor-default"
+                                )}
+                              >
+                                <PdfPageCanvas
+                                  pdfDoc={loadedPdfDoc}
+                                  file={selectedFile}
+                                  pageNumber={p}
+                                  targetWidth={pageWidth}
+                                  className="border-0 shadow-none rounded-none w-full h-full"
+                                  onLoadSuccess={handlePdfLoadSuccess}
+                                  onTotalPages={handlePdfTotalPages}
+                                />
+
+                                {/* Per-Page Fields Overlay Layer */}
+                                {renderFieldsForPage(p)}
+                              </div>
+                            </div>
+                          )
+                        })
+                      ) : (
+                        <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
+                          No document loaded
                         </div>
-                        <span className="truncate text-xs font-bold text-amber-950 dark:text-amber-100">
-                          {recipientName || "Customer"}
-                        </span>
-                      </div>
-                      <Move className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-300 opacity-80" />
-
-                      {/* Resize handles */}
-                      <div
-                        onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "e")}
-                        className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-amber-600/40 rounded-full"
-                        title="Drag right edge to change width"
-                      />
-                      <div
-                        onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "s")}
-                        className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-amber-600/40 rounded-full"
-                        title="Drag bottom edge to change height"
-                      />
-                      <div
-                        onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "se")}
-                        className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-amber-500 border-2 border-white dark:border-amber-950 rounded-xs shadow-md cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
-                        title="Drag corner to resize width & height"
-                      >
-                        <div className="w-1.5 h-1.5 bg-white dark:bg-amber-950 rounded-full" />
-                      </div>
+                      )}
                     </div>
-
-                    {/* Draggable & Resizable Full Name */}
-                    {reqFullName && (
-                      <div
-                        data-canvas-field="true"
-                        onMouseDown={(e) => handleFieldMouseDown(e, "fullName", fullNameZone, setFullNameZone)}
-                        style={{
-                          position: "absolute",
-                          left: `${fullNameZone.x * 100}%`,
-                          top: `${fullNameZone.y * 100}%`,
-                          width: `${fullNameZone.w * 100}%`,
-                          height: `${fullNameZone.h * 100}%`,
-                          minHeight: "30px",
-                          cursor: activeDragField === "fullName" ? "grabbing" : "grab",
-                        }}
-                        className="border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/60 rounded-md px-2 flex items-center justify-between text-xs text-blue-950 dark:text-blue-100 font-semibold shadow-md ring-1 ring-blue-400/40 z-20 group select-none"
-                        title="Drag to position Full Name • Use corner/edges to resize"
-                      >
-                        <span className="truncate">Full Name: {recipientName || "Name"}</span>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
-
-                        {/* Resize handles */}
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, "e")}
-                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-blue-500/30 rounded-full"
-                          title="Drag edge to change width"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, "s")}
-                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-blue-500/30 rounded-full"
-                          title="Drag edge to change height"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, "se")}
-                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-blue-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
-                          title="Drag corner to resize width & height"
-                        >
-                          <div className="w-1 h-1 bg-blue-600 rounded-full" />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Draggable & Resizable Job Title */}
-                    {reqJobTitle && (
-                      <div
-                        data-canvas-field="true"
-                        onMouseDown={(e) => handleFieldMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone)}
-                        style={{
-                          position: "absolute",
-                          left: `${jobTitleZone.x * 100}%`,
-                          top: `${jobTitleZone.y * 100}%`,
-                          width: `${jobTitleZone.w * 100}%`,
-                          height: `${jobTitleZone.h * 100}%`,
-                          minHeight: "30px",
-                          cursor: activeDragField === "jobTitle" ? "grabbing" : "grab",
-                        }}
-                        className="border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 rounded-md px-2 flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-100 font-semibold shadow-md ring-1 ring-indigo-400/40 z-20 group select-none"
-                        title="Drag to position Job Title • Use corner/edges to resize"
-                      >
-                        <span className="truncate">Job Title: Director</span>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
-
-                        {/* Resize handles */}
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, "e")}
-                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-indigo-500/30 rounded-full"
-                          title="Drag edge to change width"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, "s")}
-                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-indigo-500/30 rounded-full"
-                          title="Drag edge to change height"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, "se")}
-                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-indigo-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
-                          title="Drag corner to resize width & height"
-                        >
-                          <div className="w-1 h-1 bg-indigo-600 rounded-full" />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Draggable & Resizable Email */}
-                    {reqEmail && (
-                      <div
-                        data-canvas-field="true"
-                        onMouseDown={(e) => handleFieldMouseDown(e, "email", emailZone, setEmailZone)}
-                        style={{
-                          position: "absolute",
-                          left: `${emailZone.x * 100}%`,
-                          top: `${emailZone.y * 100}%`,
-                          width: `${emailZone.w * 100}%`,
-                          height: `${emailZone.h * 100}%`,
-                          minHeight: "30px",
-                          cursor: activeDragField === "email" ? "grabbing" : "grab",
-                        }}
-                        className="border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 rounded-md px-2 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-100 font-semibold shadow-md ring-1 ring-emerald-400/40 z-20 group select-none"
-                        title="Drag to position Email • Use corner/edges to resize"
-                      >
-                        <span className="truncate">Email: {recipientEmail || "email@company.com"}</span>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
-
-                        {/* Resize handles */}
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, "e")}
-                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-emerald-500/30 rounded-full"
-                          title="Drag edge to change width"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, "s")}
-                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-emerald-500/30 rounded-full"
-                          title="Drag edge to change height"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, "se")}
-                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
-                          title="Drag corner to resize width & height"
-                        >
-                          <div className="w-1 h-1 bg-emerald-600 rounded-full" />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Draggable & Resizable Date */}
-                    {reqDate && (
-                      <div
-                        data-canvas-field="true"
-                        onMouseDown={(e) => handleFieldMouseDown(e, "date", dateZone, setDateZone)}
-                        style={{
-                          position: "absolute",
-                          left: `${dateZone.x * 100}%`,
-                          top: `${dateZone.y * 100}%`,
-                          width: `${dateZone.w * 100}%`,
-                          height: `${dateZone.h * 100}%`,
-                          minHeight: "30px",
-                          cursor: activeDragField === "date" ? "grabbing" : "grab",
-                        }}
-                        className="border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/60 rounded-md px-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-semibold shadow-md ring-1 ring-amber-400/40 z-20 group select-none"
-                        title="Drag to position Date • Use corner/edges to resize"
-                      >
-                        <span className="truncate">Date Signed</span>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
-
-                        {/* Resize handles */}
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, "e")}
-                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-amber-500/30 rounded-full"
-                          title="Drag edge to change width"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, "s")}
-                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-amber-500/30 rounded-full"
-                          title="Drag edge to change height"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, "se")}
-                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-amber-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
-                          title="Drag corner to resize width & height"
-                        >
-                          <div className="w-1 h-1 bg-amber-600 rounded-full" />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Draggable & Resizable Custom Text Fields */}
-                    {customTextFields.map((tf, idx) => (
-                      <div
-                        data-canvas-field="true"
-                        key={tf.id}
-                        onMouseDown={(e) =>
-                          handleFieldMouseDown(e, `customText-${tf.id}`, tf.zone, (updater) => {
-                            setCustomTextFields((prev) =>
-                              prev.map((item) =>
-                                item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
-                              )
-                            )
-                          })
-                        }
-                        style={{
-                          position: "absolute",
-                          left: `${tf.zone.x * 100}%`,
-                          top: `${tf.zone.y * 100}%`,
-                          width: `${tf.zone.w * 100}%`,
-                          height: `${tf.zone.h * 100}%`,
-                          minHeight: "30px",
-                          cursor: activeDragField === `customText-${tf.id}` ? "grabbing" : "grab",
-                        }}
-                        className="border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/60 rounded-md px-2 flex items-center justify-between text-xs text-purple-950 dark:text-purple-100 font-semibold shadow-md ring-1 ring-purple-400/40 z-20 group select-none"
-                        title="Drag to position Text Field • Use corner/edges to resize"
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
-                          <Type className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                          <input
-                            type="text"
-                            value={tf.label}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setCustomTextFields((prev) =>
-                                prev.map((item) => (item.id === tf.id ? { ...item, label: val } : item))
-                              )
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
-                            onKeyDown={(e) => {
-                              e.stopPropagation()
-                              if (e.key === "Enter" || e.key === "Escape") {
-                                (e.target as HTMLInputElement).blur()
-                              }
-                            }}
-                            placeholder={`Text Field ${idx + 1}`}
-                            title="Click to edit field label directly"
-                            className="w-full bg-transparent border-0 p-0 text-xs font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
-                          />
-                        </div>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300 cursor-grab" />
-
-                        {/* Resize handles */}
-                        <div
-                          onMouseDown={(e) =>
-                            handleFieldResizeMouseDown(
-                              e,
-                              `customText-${tf.id}`,
-                              tf.zone,
-                              (updater) => {
-                                setCustomTextFields((prev) =>
-                                  prev.map((item) =>
-                                    item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
-                                  )
-                                )
-                              },
-                              "e"
-                            )
-                          }
-                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-purple-500/30 rounded-full"
-                          title="Drag edge to change width"
-                        />
-                        <div
-                          onMouseDown={(e) =>
-                            handleFieldResizeMouseDown(
-                              e,
-                              `customText-${tf.id}`,
-                              tf.zone,
-                              (updater) => {
-                                setCustomTextFields((prev) =>
-                                  prev.map((item) =>
-                                    item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
-                                  )
-                                )
-                              },
-                              "s"
-                            )
-                          }
-                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-purple-500/30 rounded-full"
-                          title="Drag edge to change height"
-                        />
-                        <div
-                          onMouseDown={(e) =>
-                            handleFieldResizeMouseDown(
-                              e,
-                              `customText-${tf.id}`,
-                              tf.zone,
-                              (updater) => {
-                                setCustomTextFields((prev) =>
-                                  prev.map((item) =>
-                                    item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
-                                  )
-                                )
-                              },
-                              "se"
-                            )
-                          }
-                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
-                          title="Drag corner to resize width & height"
-                        >
-                          <div className="w-1 h-1 bg-purple-600 rounded-full" />
-                        </div>
-                      </div>
-                    ))}
-                        </div>
-                      </div>
-                    </div>
+                  </div>
                 </div>
               </div>
             </div>

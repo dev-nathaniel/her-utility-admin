@@ -6,6 +6,7 @@ import { Loader2, AlertCircle, FileText } from "lucide-react"
 export interface PdfPageCanvasProps {
   file?: File | null
   url?: string | null
+  pdfDoc?: any
   fallbackImageUrl?: string | null
   pageNumber: number
   scale?: number
@@ -19,7 +20,7 @@ export interface PdfPageCanvasProps {
 }
 
 // Client-side PDF.js loader that avoids Webpack 'canvas' module issues
-async function getPdfJs(): Promise<any> {
+export async function getPdfJs(): Promise<any> {
   if (typeof window === "undefined") return null
   if ((window as any).pdfjsLib) return (window as any).pdfjsLib
 
@@ -57,6 +58,7 @@ async function getPdfJs(): Promise<any> {
 function PdfPageCanvasComponent({
   file,
   url,
+  pdfDoc: externalPdfDoc,
   fallbackImageUrl,
   pageNumber = 1,
   scale = 1.0,
@@ -73,6 +75,7 @@ function PdfPageCanvasComponent({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [pdfDoc, setPdfDoc] = useState<any>(null)
+  const effectivePdfDoc = externalPdfDoc || pdfDoc
   const [imageObjectUrl, setImageObjectUrl] = useState<string | null>(null)
   const [isImageFile, setIsImageFile] = useState(false)
   const [pageSize, setPageSize] = useState<{ width: number; height: number }>({
@@ -155,6 +158,11 @@ function PdfPageCanvasComponent({
       (contentType && contentType.startsWith("image/")) ||
       (url && /\.(png|jpe?g|webp|gif)(\?.*)?$/i.test(url))
 
+    if (externalPdfDoc) {
+      setLoading(false)
+      setError(null)
+      return
+    }
     if (isImg || isImageFile) return
     let isCancelled = false
 
@@ -280,12 +288,12 @@ function PdfPageCanvasComponent({
 
   // 3. Render the specific page onto the Canvas
   useEffect(() => {
-    if (isImageFile || !pdfDoc) return
+    if (isImageFile || !effectivePdfDoc) return
     let isCancelled = false
 
     async function renderPage() {
       const canvas = canvasRef.current
-      if (!canvas || !pdfDoc) return
+      if (!canvas || !effectivePdfDoc) return
 
       // Cancel any ongoing render task
       if (renderTaskRef.current) {
@@ -297,8 +305,8 @@ function PdfPageCanvasComponent({
         renderTaskRef.current = null
       }
 
-      const safePageNum = Math.max(1, Math.min(pageNumber, pdfDoc.numPages))
-      const pageKey = `${currentDocKeyRef.current}-p${safePageNum}`
+      const safePageNum = Math.max(1, Math.min(pageNumber, effectivePdfDoc.numPages))
+      const pageKey = `${currentDocKeyRef.current || "ext"}-p${safePageNum}`
       const isNewPage = renderedPageKeyRef.current !== pageKey
 
       // Only show full loading overlay on new page or document switch
@@ -308,7 +316,7 @@ function PdfPageCanvasComponent({
       }
 
       try {
-        const page = await pdfDoc.getPage(safePageNum)
+        const page = await effectivePdfDoc.getPage(safePageNum)
 
         if (isCancelled) return
 
@@ -379,7 +387,7 @@ function PdfPageCanvasComponent({
         } catch {}
       }
     }
-  }, [pdfDoc, pageNumber, isImageFile, targetWidth, scale])
+  }, [effectivePdfDoc, pageNumber, isImageFile, targetWidth, scale])
 
   // 4. Handle Click to Reposition
   const handleOverlayClick = useCallback(
