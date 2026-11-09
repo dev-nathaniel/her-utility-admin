@@ -228,17 +228,8 @@ export default function PrepareDocumentPage() {
       }
       setReqTermsCheck(existingFields.some((f: any) => f.type === "acknowledgement" || f.id === "f_terms"))
 
-      const customTexts = existingFields.filter((f: any) => f.type === "text")
-      if (customTexts.length > 0) {
-        setCustomTextFields(
-          customTexts.map((f: any, idx: number) => ({
-            id: f.id || String(idx + 1),
-            label: f.value || f.prefill || f.text || f.label || `Text Field ${idx + 1}`,
-            page: f.page || 1,
-            zone: f.rect || { x: 0.3, y: 0.5, w: 0.35, h: 0.045 },
-          }))
-        )
-      }
+      // Note: Text fields burned into the PDF are part of the document stream,
+      // and do not need to show up as interactive fields in Signature Studio.
     }
   }, [document])
 
@@ -992,6 +983,7 @@ export default function PrepareDocumentPage() {
           recipientName || document?.user_company || "client"
         }.`,
       })
+      setCustomTextFields([])
       queryClient.invalidateQueries({ queryKey: ["documents"] })
       queryClient.invalidateQueries({ queryKey: ["document", documentId] })
       router.push("/dashboard/documents")
@@ -1062,26 +1054,43 @@ export default function PrepareDocumentPage() {
             onClick={() => router.push("/dashboard/documents")}
             className="text-xs font-medium"
           >
-            {isSigned ? "Back to Documents" : "Cancel"}
+            Back to Documents
           </Button>
-          {!isSigned ? (
+          <Button
+            asChild
+            size="sm"
+            className="gap-1.5 text-xs font-semibold shadow-xs bg-primary hover:bg-primary/90 text-primary-foreground"
+          >
+            <Link href="/dashboard/documents/upload">
+              <Plus className="h-3.5 w-3.5" />
+              Upload &amp; Send New Document
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* Notice: Envelope is final once sent */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-100 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 shrink-0">
+            <Info className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Envelope Finalised</p>
+            <p className="text-xs text-amber-800 dark:text-amber-300 mt-0.5">
+              Once an envelope has been sent, it is final. If you want something different, please upload and send a new document.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {livePdfUrl && (
             <Button
               size="sm"
-              onClick={() => sendMutation.mutate()}
-              disabled={sendMutation.isPending}
-              className="gap-2 text-xs font-semibold shadow-sm bg-primary hover:bg-primary/90 text-primary-foreground"
+              variant="outline"
+              className="text-xs font-medium gap-1.5"
+              onClick={() => window.open(livePdfUrl, "_blank")}
             >
-              <Send className="h-3.5 w-3.5" />
-              {sendMutation.isPending ? "Dispatching..." : "Dispatch to Customer Mobile App"}
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              disabled
-              className="gap-2 text-xs font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 cursor-not-allowed"
-            >
-              <Lock className="h-3.5 w-3.5 text-emerald-600" />
-              Document Sealed (Signed)
+              <Eye className="h-3.5 w-3.5" /> View Current Document
             </Button>
           )}
         </div>

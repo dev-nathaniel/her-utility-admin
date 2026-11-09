@@ -1314,20 +1314,8 @@ function UploadDocumentForm() {
           })
         }
 
-        customTextFields.forEach((tf, idx) => {
-          const textVal = tf.label.trim()
-          fields.push({
-            id: `f_text_${tf.id || idx + 1}`,
-            page: tf.page || targetPage || 1,
-            type: "text",
-            label: textVal || `Text Field ${idx + 1}`,
-            value: textVal,
-            prefill: textVal,
-            text: textVal,
-            required: false,
-            rect: tf.zone,
-          })
-        })
+        // Note: customTextFields were already burned directly into the PDF before upload,
+        // so they do not need to be sent as interactive signing fields to the signer.
 
         await apiClient.sendForSignature(docId, {
           target_page: signaturePage || targetPage || 1,

@@ -369,8 +369,22 @@ export function DocumentsPage() {
       className: "py-4 px-4 align-middle text-right min-w-[170px]",
       render: (d) => (
         <div className="flex items-center justify-end gap-2">
-          {/* Primary Action Button */}
-          {isDocNeedingSignature(d) ? (
+          {/* Primary Action Button (View Document) */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-3 text-xs font-medium gap-1.5"
+            onClick={() => handleDownload(d.id, "view")}
+            title="View document in new tab"
+          >
+            <Eye className="h-3.5 w-3.5" />
+            View
+          </Button>
+
+          {/*
+          // Sign Setup commented out - once an envelope is sent, that is final.
+          // If users want changes, they upload and send another document.
+          {isDocNeedingSignature(d) && (
             <Button
               size="sm"
               className="h-8 px-3 text-xs font-semibold gap-1.5 shadow-xs bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -380,18 +394,8 @@ export function DocumentsPage() {
               <PenTool className="h-3.5 w-3.5" />
               Sign Setup
             </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-3 text-xs font-medium gap-1.5"
-              onClick={() => handleDownload(d.id, "view")}
-              title="View document in new tab"
-            >
-              <Eye className="h-3.5 w-3.5" />
-              {isDocCompleted(d) ? "View" : "View"}
-            </Button>
           )}
+          */}
 
           {/* More Actions Dropdown */}
           <DropdownMenu>
@@ -412,12 +416,16 @@ export function DocumentsPage() {
                 <Download className="h-4 w-4 mr-2" /> Download PDF
               </DropdownMenuItem>
 
-              {/* Only show Signature Studio if the document has NOT been completed or archived */}
+              {/* Signature Studio commented out - once sent, documents cannot be re-opened for placement */}
+              {/*
               {!isDocCompleted(d) && !isDocArchived(d) ? (
                 <DropdownMenuItem onClick={() => router.push(`/dashboard/documents/${d.id}/prepare`)}>
                   <PenTool className="h-4 w-4 mr-2" /> Signature Studio
                 </DropdownMenuItem>
-              ) : isDocCompleted(d) ? (
+              ) : null}
+              */}
+
+              {isDocCompleted(d) ? (
                 <>
                   <DropdownMenuItem onClick={() => handleDownload(d.id, "download", "combined")}>
                     <FileText className="h-4 w-4 mr-2 text-primary" /> Download Combined Pack
