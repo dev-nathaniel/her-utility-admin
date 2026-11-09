@@ -55,6 +55,7 @@ import {
   Plus,
   Sparkles,
   Check,
+  Type,
 } from "lucide-react"
 
 export interface SignatureZone {
@@ -117,6 +118,12 @@ function UploadDocumentForm() {
   const [reqEmail, setReqEmail] = useState(false)
   const [reqDate, setReqDate] = useState(false)
   const [reqTermsCheck, setReqTermsCheck] = useState(false)
+  const [reqTextField, setReqTextField] = useState(false)
+  const [textLabel, setTextLabel] = useState("Custom Text")
+  const [textZone, setTextZone] = useState<SignatureZone>({ x: 0.30, y: 0.50, w: 0.35, h: 0.045 })
+  const [extraTextFields, setExtraTextFields] = useState<
+    Array<{ id: string; label: string; zone: SignatureZone }>
+  >([])
 
   // ── DocuSign Flow States (Set Up Envelope & Fields) ──
   const [docusignStep, setDocusignStep] = useState<"envelope" | "fields">("envelope")
@@ -125,8 +132,11 @@ function UploadDocumentForm() {
   const [reminderFrequency, setReminderFrequency] = useState("Every day")
   const [selfSignNeeded, setSelfSignNeeded] = useState(false)
   const [isDraggingFile, setIsDraggingFile] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+  const [activeFileIndex, setActiveFileIndex] = useState<number>(0)
+  const replacingFileIndexRef = useRef<number | null>(null)
   const [additionalRecipients, setAdditionalRecipients] = useState<
-    Array<{ id: string; name: string; email: string }>
+    Array<{ id: string; name: string; email: string; businessId?: string }>
   >([])
 
   // Keep subject synced with document name
@@ -206,18 +216,15 @@ function UploadDocumentForm() {
     }
   }, [companies, selectedBusinessId])
 
-  // Handle File Pick
-  const handleFilePicked = (f: File) => {
-    setSelectedFile(f)
+  // Apply metadata defaults based on document name/type
+  const applyDocumentDefaults = (f: File) => {
     setTargetPage(1)
     const lower = f.name.toLowerCase()
-    if (!documentName) {
-      const cleanName = f.name
-        .replace(/\.[^/.]+$/, "")
-        .replace(/[-_]/g, " ")
-        .replace(/\b\w/g, (l) => l.toUpperCase())
-      setDocumentName(cleanName)
-    }
+    const cleanName = f.name
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (l) => l.toUpperCase())
+    setDocumentName(cleanName)
 
     if (lower.includes("contract") || lower.includes("agreement")) {
       setDocumentType("signed_contract")
@@ -236,28 +243,76 @@ function UploadDocumentForm() {
     }
   }
 
-  // Interactive canvas click to reposition signature box
-  const handleCanvasClick = useCallback(
-    (coords: { x: number; y: number }) => {
-      setZone((prev) => {
-        const newX = Math.max(0.02, Math.min(0.98 - prev.w, coords.x - prev.w / 2))
-        const newY = Math.max(0.02, Math.min(0.98 - prev.h, coords.y - prev.h / 2))
-        return {
-          ...prev,
-          x: Number(newX.toFixed(3)),
-          y: Number(newY.toFixed(3)),
-        }
-      })
-    },
-    []
-  )
+  // Handle single or initial file pick
+  const handleFilePicked = (f: File) => {
+    setUploadedFiles([f])
+    setSelectedFile(f)
+    setActiveFileIndex(0)
+    applyDocumentDefaults(f)
+  }
 
-  // Mouse Drag on ANY Field (Zero lag, 1:1 instantaneous cursor tracking without CSS transition delay)
+  // Append additional files
+  const handleAddFiles = (files: File[]) => {
+    if (!files.length) return
+    setUploadedFiles((prev) => {
+      const next = [...prev, ...files]
+      if (!selectedFile && next.length > 0) {
+        setSelectedFile(next[0])
+        setActiveFileIndex(0)
+        applyDocumentDefaults(next[0])
+      }
+      return next
+    })
+  }
+
+  // Trigger file input to change/replace a specific document
+  const handleChangeDocument = (index: number) => {
+    replacingFileIndexRef.current = index
+    fileInputRef.current?.click()
+  }
+
+  // Trigger file input to add more documents
+  const handleAddMoreDocuments = () => {
+    replacingFileIndexRef.current = null
+    fileInputRef.current?.click()
+  }
+
+  // Delete a document from envelope
+  const handleDeleteDocument = (index: number) => {
+    setUploadedFiles((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      if (next.length === 0) {
+        setSelectedFile(null)
+        setDocumentName("")
+        setActiveFileIndex(0)
+      } else if (activeFileIndex >= next.length) {
+        const newIdx = next.length - 1
+        setActiveFileIndex(newIdx)
+        setSelectedFile(next[newIdx])
+        applyDocumentDefaults(next[newIdx])
+      } else if (activeFileIndex === index) {
+        const newIdx = Math.min(index, next.length - 1)
+        setActiveFileIndex(newIdx)
+        setSelectedFile(next[newIdx])
+        applyDocumentDefaults(next[newIdx])
+      }
+      return next
+    })
+  }
+
+  // Switch which document is active for preview/placement
+  const handleSelectActiveDocument = (index: number) => {
+    setActiveFileIndex(index)
+    setSelectedFile(uploadedFiles[index])
+    setTargetPage(1)
+  }
+
+  // Mouse Drag to Move ANY Field (Zero lag, 1:1 instantaneous cursor tracking)
   const handleFieldMouseDown = (
     e: React.MouseEvent,
-    fieldName: "signature" | "fullName" | "jobTitle" | "email" | "date",
+    fieldName: string,
     currentFieldZone: SignatureZone,
-    setFieldZone: React.Dispatch<React.SetStateAction<SignatureZone>>
+    setFieldZone: (updater: (prev: SignatureZone) => SignatureZone) => void
   ) => {
     e.stopPropagation()
     e.preventDefault()
@@ -277,11 +332,66 @@ function UploadDocumentForm() {
       const newX = Math.max(0.01, Math.min(0.99 - currentFieldZone.w, initX + deltaX))
       const newY = Math.max(0.01, Math.min(0.99 - currentFieldZone.h, initY + deltaY))
 
-      setFieldZone((prev) => ({
+      setFieldZone((prev: SignatureZone) => ({
         ...prev,
         x: Number(newX.toFixed(3)),
         y: Number(newY.toFixed(3)),
       }))
+    }
+
+    const onMouseUp = () => {
+      setActiveDragField(null)
+      window.removeEventListener("mousemove", onMouseMove)
+      window.removeEventListener("mouseup", onMouseUp)
+    }
+
+    window.addEventListener("mousemove", onMouseMove)
+    window.addEventListener("mouseup", onMouseUp)
+  }
+
+  // Mouse Drag on Resize Handles (Corner 'se', right edge 'e', bottom edge 's')
+  const handleFieldResizeMouseDown = (
+    e: React.MouseEvent,
+    fieldName: string,
+    currentFieldZone: SignatureZone,
+    setFieldZone: (updater: (prev: SignatureZone) => SignatureZone) => void,
+    direction: "se" | "e" | "s" = "se"
+  ) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setActiveDragField(`resize-${fieldName}`)
+
+    const startX = e.clientX
+    const startY = e.clientY
+    const initW = currentFieldZone.w
+    const initH = currentFieldZone.h
+    const initX = currentFieldZone.x
+    const initY = currentFieldZone.y
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!previewContainerRef.current) return
+      const rect = previewContainerRef.current.getBoundingClientRect()
+      const deltaX = (moveEvent.clientX - startX) / rect.width
+      const deltaY = (moveEvent.clientY - startY) / rect.height
+
+      setFieldZone((prev: SignatureZone) => {
+        let newW = prev.w
+        let newH = prev.h
+
+        if (direction === "se" || direction === "e") {
+          newW = Math.max(0.08, Math.min(0.99 - initX, initW + deltaX))
+        }
+
+        if (direction === "se" || direction === "s") {
+          newH = Math.max(0.025, Math.min(0.99 - initY, initH + deltaY))
+        }
+
+        return {
+          ...prev,
+          w: Number(newW.toFixed(3)),
+          h: Number(newH.toFixed(3)),
+        }
+      })
     }
 
     const onMouseUp = () => {
@@ -508,6 +618,30 @@ function UploadDocumentForm() {
           })
         }
 
+        if (reqTextField) {
+          fields.push({
+            id: "f_text_main",
+            page: targetPage,
+            type: "text",
+            label: textLabel.trim() || "Text Field",
+            required: false,
+            rect: textZone,
+            prefill: "",
+          })
+        }
+
+        extraTextFields.forEach((et, idx) => {
+          fields.push({
+            id: `f_text_${et.id || idx + 2}`,
+            page: targetPage,
+            type: "text",
+            label: et.label.trim() || `Text Field ${idx + 2}`,
+            required: false,
+            rect: et.zone,
+            prefill: "",
+          })
+        })
+
         await apiClient.sendForSignature(docId, {
           target_page: targetPage,
           signature_zone: zone,
@@ -593,11 +727,52 @@ function UploadDocumentForm() {
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8">
               {/* 1. Add documents */}
               <section className="space-y-3">
-                <h2 className="text-base sm:text-lg font-semibold text-foreground tracking-tight">
-                  Add documents
-                </h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base sm:text-lg font-semibold text-foreground tracking-tight">
+                    Add documents
+                  </h2>
+                  {uploadedFiles.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      {uploadedFiles.length} {uploadedFiles.length === 1 ? "document" : "documents"} loaded
+                    </span>
+                  )}
+                </div>
 
-                {!selectedFile ? (
+                {/* Hidden File Input permanently mounted to support Change and Add More Documents */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => {
+                    const fileList = e.target.files
+                    if (!fileList || fileList.length === 0) return
+                    const incomingFiles = Array.from(fileList)
+
+                    if (replacingFileIndexRef.current !== null) {
+                      const idx = replacingFileIndexRef.current
+                      const replacement = incomingFiles[0]
+                      setUploadedFiles((prev) => {
+                        const next = [...prev]
+                        next[idx] = replacement
+                        return next
+                      })
+                      if (idx === activeFileIndex || uploadedFiles.length <= 1) {
+                        setSelectedFile(replacement)
+                        applyDocumentDefaults(replacement)
+                      }
+                      toast.success(`Updated document: ${replacement.name}`)
+                      replacingFileIndexRef.current = null
+                    } else {
+                      handleAddFiles(incomingFiles)
+                      toast.success(`Added ${incomingFiles.length} document${incomingFiles.length > 1 ? "s" : ""}`)
+                    }
+                    e.target.value = ""
+                  }}
+                  className="hidden"
+                />
+
+                {uploadedFiles.length === 0 ? (
                   <div
                     onDragOver={(e) => {
                       e.preventDefault()
@@ -607,8 +782,8 @@ function UploadDocumentForm() {
                     onDrop={(e) => {
                       e.preventDefault()
                       setIsDraggingFile(false)
-                      const f = e.dataTransfer.files?.[0]
-                      if (f) handleFilePicked(f)
+                      const files = Array.from(e.dataTransfer.files || [])
+                      if (files.length > 0) handleAddFiles(files)
                     }}
                     className={cn(
                       "rounded-xl border border-slate-200/90 dark:border-border/70 p-10 sm:p-14 text-center transition-colors",
@@ -625,72 +800,97 @@ function UploadDocumentForm() {
                     </p>
                     <Button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => {
+                        replacingFileIndexRef.current = null
+                        fileInputRef.current?.click()
+                      }}
                       className="h-9 px-6 text-xs sm:text-sm font-semibold rounded-md shadow-sm bg-[#4c00ff] hover:bg-[#3d00cc] text-white"
                     >
                       Upload
                     </Button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0]
-                        if (f) handleFilePicked(f)
-                      }}
-                      className="hidden"
-                    />
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-border bg-card p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs">
-                    <div className="flex items-center gap-3.5 min-w-0">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <FileText className="h-6 w-6" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm text-foreground truncate" title={selectedFile.name}>
-                          {documentName || selectedFile.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {(selectedFile.size / 1024).toFixed(0)} KB • Ready for field placement
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button
+                  <div className="space-y-2.5">
+                    {uploadedFiles.map((file, idx) => {
+                      const isSelected = idx === activeFileIndex
+                      return (
+                        <div
+                          key={`${file.name}-${idx}`}
+                          className={cn(
+                            "rounded-xl border p-4 sm:p-5 flex items-center justify-between gap-4 shadow-xs transition-all",
+                            isSelected
+                              ? "border-primary/50 bg-primary/[0.02] ring-1 ring-primary/20 dark:bg-muted/30"
+                              : "border-border bg-card hover:border-border/80"
+                          )}
+                        >
+                          <div
+                            className="flex items-center gap-3.5 min-w-0 flex-1 cursor-pointer"
+                            onClick={() => handleSelectActiveDocument(idx)}
+                            title="Click to select this document for signature field placement"
+                          >
+                            <div
+                              className={cn(
+                                "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl",
+                                isSelected
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-muted text-muted-foreground"
+                              )}
+                            >
+                              <FileText className="h-6 w-6" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="font-semibold text-sm text-foreground truncate" title={file.name}>
+                                  {idx === activeFileIndex && documentName ? documentName : file.name}
+                                </p>
+                                {uploadedFiles.length > 1 && isSelected && (
+                                  <Badge variant="outline" className="text-[10px] text-primary border-primary/30 shrink-0">
+                                    Signing Target
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {(file.size / 1024).toFixed(0)} KB • Ready for field placement
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleChangeDocument(idx)}
+                              className="text-xs font-medium h-8"
+                            >
+                              Change
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteDocument(idx)}
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              title="Delete document"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    <div className="flex justify-end pt-1">
+                      <button
                         type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-xs font-medium"
+                        onClick={handleAddMoreDocuments}
+                        className="text-xs sm:text-sm font-medium text-primary hover:underline cursor-pointer inline-flex items-center gap-1.5"
                       >
-                        Change
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedFile(null)
-                          setDocumentName("")
-                        }}
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                        <Plus className="h-3.5 w-3.5" />
+                        Add More Documents
+                      </button>
                     </div>
                   </div>
                 )}
-
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-xs sm:text-sm font-medium text-primary hover:underline cursor-pointer"
-                  >
-                    Add More Documents
-                  </button>
-                </div>
               </section>
 
               {/* 2. Add a recipient */}
@@ -768,25 +968,91 @@ function UploadDocumentForm() {
                   return (
                     <div key={rec.id} className="relative rounded-lg border border-border bg-card shadow-xs overflow-hidden mt-3">
                       <div className="absolute left-0 top-0 bottom-0 w-2.5" style={{ backgroundColor: barColor }} />
-                      <div className="p-5 sm:p-6 pl-6 sm:pl-7 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-semibold text-foreground mb-1.5">
-                            Recipient {index + 2} Name <span className="text-rose-500">*</span>
-                          </label>
-                          <Input
-                            value={rec.name}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              setAdditionalRecipients((prev) =>
-                                prev.map((r) => (r.id === rec.id ? { ...r, name: val } : r))
-                              )
-                            }}
-                            placeholder="Full name"
-                            className="h-10 text-sm bg-background"
-                          />
+                      <div className="p-4 sm:p-5 pl-6 sm:pl-7">
+                        {/* Header bar with recipient title, quick select dropdown, and remove button */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-border/50">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-foreground">
+                              Recipient {index + 2}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] font-normal py-0 h-5">
+                              Additional Signer
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {companies.length > 0 && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px] text-muted-foreground hidden sm:inline">Select Client:</span>
+                                <Select
+                                  value={rec.businessId || ""}
+                                  onValueChange={(val) => {
+                                    const b = companies.find((c: any) => c.id === val || c._id === val)
+                                    if (b) {
+                                      setAdditionalRecipients((prev) =>
+                                        prev.map((r) =>
+                                          r.id === rec.id
+                                            ? {
+                                                ...r,
+                                                businessId: val,
+                                                name: b.full_name || b.name || b.company_name || "",
+                                                email: b.email || "",
+                                              }
+                                            : r
+                                        )
+                                      )
+                                    }
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-xs w-44 sm:w-56 bg-background border-input">
+                                    <SelectValue placeholder="Quick fill from directory" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {companies.map((c: any) => (
+                                      <SelectItem key={c.id || c._id} value={c.id || c._id} className="text-xs">
+                                        {c.company_name || c.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() =>
+                                setAdditionalRecipients((prev) => prev.filter((r) => r.id !== rec.id))
+                              }
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                              title="Remove recipient"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-end gap-2">
-                          <div className="flex-1">
+
+                        {/* Name and Email inputs */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-semibold text-foreground mb-1.5">
+                              Name <span className="text-rose-500">*</span>
+                            </label>
+                            <Input
+                              value={rec.name}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                setAdditionalRecipients((prev) =>
+                                  prev.map((r) => (r.id === rec.id ? { ...r, name: val } : r))
+                                )
+                              }}
+                              placeholder="Recipient full name"
+                              className="h-10 text-sm bg-background"
+                            />
+                          </div>
+
+                          <div>
                             <label className="block text-xs font-semibold text-foreground mb-1.5">
                               Email <span className="text-rose-500">*</span>
                             </label>
@@ -799,21 +1065,10 @@ function UploadDocumentForm() {
                                   prev.map((r) => (r.id === rec.id ? { ...r, email: val } : r))
                                 )
                               }}
-                              placeholder="Email address"
+                              placeholder="recipient@company.com"
                               className="h-10 text-sm bg-background"
                             />
                           </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            onClick={() =>
-                              setAdditionalRecipients((prev) => prev.filter((r) => r.id !== rec.id))
-                            }
-                            className="h-10 w-10 text-muted-foreground hover:text-destructive shrink-0"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -852,7 +1107,7 @@ function UploadDocumentForm() {
               </section>
 
               {/* 3. Add message */}
-              <section className="space-y-4 pt-4 border-t border-border/60">
+              <section className="space-y-4 pt-4 border-t border-border/60 pb-16">
                 <h2 className="text-base sm:text-lg font-semibold text-foreground tracking-tight">
                   Add message
                 </h2>
@@ -891,7 +1146,8 @@ function UploadDocumentForm() {
                 </div>
               </section>
 
-              {/* 4. Frequency of reminders */}
+              {/* 4. Frequency of reminders (Commented out per user request) */}
+              {/*
               <section className="space-y-2 pt-4 border-t border-border/60 pb-16">
                 <label className="block text-xs font-semibold text-foreground mb-1.5">
                   Frequency of reminders
@@ -912,6 +1168,7 @@ function UploadDocumentForm() {
                   </SelectContent>
                 </Select>
               </section>
+              */}
             </div>
           </main>
         </div>
@@ -1031,12 +1288,105 @@ function UploadDocumentForm() {
                         <Switch checked={reqEmail} onCheckedChange={setReqEmail} />
                       </div>
 
-                      <div className="flex items-center justify-between py-1">
+                      <div className="flex items-center justify-between py-1 border-b border-border/50">
                         <div className="flex items-center gap-2 text-xs font-medium">
                           <Calendar className="h-3.5 w-3.5 text-amber-600" />
                           Date Signed Field
                         </div>
                         <Switch checked={reqDate} onCheckedChange={setReqDate} />
+                      </div>
+
+                      {/* Text Field Option */}
+                      <div className="py-1 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-medium">
+                            <Type className="h-3.5 w-3.5 text-purple-600" />
+                            Text Field
+                          </div>
+                          <Switch checked={reqTextField} onCheckedChange={setReqTextField} />
+                        </div>
+                        {reqTextField && (
+                          <div className="space-y-1 pl-5.5">
+                            <label className="text-[11px] text-muted-foreground block">
+                              Label / Placeholder:
+                            </label>
+                            <Input
+                              value={textLabel}
+                              onChange={(e) => setTextLabel(e.target.value)}
+                              placeholder="e.g. Account Number, Notes"
+                              className="h-7 text-xs bg-background"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Extra Text Fields */}
+                      {extraTextFields.length > 0 && (
+                        <div className="space-y-2 pt-1 border-t border-border/40">
+                          {extraTextFields.map((et, idx) => (
+                            <div key={et.id} className="p-2 rounded-md border border-border/60 bg-muted/30 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-teal-700 dark:text-teal-400">
+                                  <Type className="h-3 w-3" />
+                                  Text Field {idx + 2}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() =>
+                                    setExtraTextFields((prev) => prev.filter((item) => item.id !== et.id))
+                                  }
+                                  className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                  title="Remove field"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <Input
+                                value={et.label}
+                                onChange={(e) => {
+                                  const val = e.target.value
+                                  setExtraTextFields((prev) =>
+                                    prev.map((item) => (item.id === et.id ? { ...item, label: val } : item))
+                                  )
+                                }}
+                                placeholder="Field Label"
+                                className="h-6 text-xs bg-background"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add Text Field Button */}
+                      <div className="pt-1 border-t border-border/50">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!reqTextField) {
+                              setReqTextField(true)
+                            } else {
+                              setExtraTextFields((prev) => [
+                                ...prev,
+                                {
+                                  id: String(Date.now()),
+                                  label: `Text Field ${prev.length + 2}`,
+                                  zone: {
+                                    x: 0.30,
+                                    y: Math.min(0.85, 0.55 + prev.length * 0.06),
+                                    w: 0.35,
+                                    h: 0.045,
+                                  },
+                                },
+                              ])
+                            }
+                          }}
+                          className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add {reqTextField ? "Another " : ""}Text Field
+                        </button>
                       </div>
                     </CardContent>
                   </Card>
@@ -1046,32 +1396,55 @@ function UploadDocumentForm() {
                 <div className="lg:col-span-8 space-y-3">
                   {/* Canvas Toolbar */}
                   <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl border bg-card text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-foreground">Target Page:</span>
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={targetPage <= 1}
-                          onClick={() => setTargetPage((p) => Math.max(1, p - 1))}
-                          className="h-7 w-7 p-0"
-                        >
-                          <ChevronLeft className="h-3.5 w-3.5" />
-                        </Button>
-                        <span className="px-2 font-mono font-medium">
-                          {targetPage} / {detectedTotalPages || 1}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={targetPage >= detectedTotalPages}
-                          onClick={() => setTargetPage((p) => p + 1)}
-                          className="h-7 w-7 p-0"
-                        >
-                          <ChevronRight className="h-3.5 w-3.5" />
-                        </Button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {uploadedFiles.length > 1 && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-foreground">Document:</span>
+                          <Select
+                            value={String(activeFileIndex)}
+                            onValueChange={(val) => handleSelectActiveDocument(Number(val))}
+                          >
+                            <SelectTrigger className="h-7 text-xs w-36 sm:w-44 bg-card border-input">
+                              <SelectValue placeholder="Select Document" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {uploadedFiles.map((f, i) => (
+                                <SelectItem key={`${f.name}-${i}`} value={String(i)} className="text-xs">
+                                  {f.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-foreground">Target Page:</span>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={targetPage <= 1}
+                            onClick={() => setTargetPage((p) => Math.max(1, p - 1))}
+                            className="h-7 w-7 p-0"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </Button>
+                          <span className="px-2 font-mono font-medium">
+                            {targetPage} / {detectedTotalPages || 1}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={targetPage >= detectedTotalPages}
+                            onClick={() => setTargetPage((p) => p + 1)}
+                            className="h-7 w-7 p-0"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
@@ -1101,19 +1474,12 @@ function UploadDocumentForm() {
                   {/* Interactive Document Canvas with Draggable Zones */}
                   <div
                     ref={previewContainerRef}
-                    onClick={(e) => {
-                      if (!previewContainerRef.current) return
-                      const rect = previewContainerRef.current.getBoundingClientRect()
-                      const x = (e.clientX - rect.left) / rect.width
-                      const y = (e.clientY - rect.top) / rect.height
-                      handleCanvasClick({ x, y })
-                    }}
                     style={{
                       transform: `scale(${zoomScale})`,
                       transformOrigin: "top center",
                       transition: "transform 0.15s ease-out",
                     }}
-                    className="relative border rounded-xl shadow-md bg-white overflow-hidden select-none cursor-crosshair mx-auto"
+                    className="relative border rounded-xl shadow-md bg-white overflow-hidden select-none cursor-default mx-auto"
                   >
                     {selectedFile ? (
                       <PdfPageCanvas
@@ -1127,7 +1493,7 @@ function UploadDocumentForm() {
                       </div>
                     )}
 
-                    {/* Draggable Signature Zone */}
+                    {/* Draggable & Resizable Signature Zone */}
                     <div
                       onMouseDown={(e) => handleFieldMouseDown(e, "signature", zone, setZone)}
                       style={{
@@ -1139,17 +1505,36 @@ function UploadDocumentForm() {
                         minHeight: "38px",
                         cursor: activeDragField === "signature" ? "grabbing" : "grab",
                       }}
-                      className="border-2 border-dashed border-primary bg-primary/10 rounded-md p-2 flex items-center justify-between text-xs text-primary font-bold shadow-lg z-30 hover:bg-primary/15 transition-colors"
-                      title="Drag to position Signature"
+                      className="border-2 border-dashed border-primary bg-primary/10 rounded-md p-2 flex items-center justify-between text-xs text-primary font-bold shadow-lg z-30 hover:bg-primary/15 transition-colors group select-none"
+                      title="Drag to position Signature • Use corner/edges to resize"
                     >
                       <div className="flex items-center gap-1.5 truncate">
                         <PenTool className="h-4 w-4 shrink-0" />
                         <span className="truncate">Sign Here • {recipientName || "Customer"}</span>
                       </div>
                       <Move className="h-3.5 w-3.5 shrink-0 opacity-70" />
+
+                      {/* Resize handles */}
+                      <div
+                        onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "e")}
+                        className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-primary/30 rounded-full"
+                        title="Drag right edge to change width"
+                      />
+                      <div
+                        onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "s")}
+                        className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-primary/30 rounded-full"
+                        title="Drag bottom edge to change height"
+                      />
+                      <div
+                        onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "se")}
+                        className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                        title="Drag corner to resize width & height"
+                      >
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                      </div>
                     </div>
 
-                    {/* Draggable Full Name */}
+                    {/* Draggable & Resizable Full Name */}
                     {reqFullName && (
                       <div
                         onMouseDown={(e) => handleFieldMouseDown(e, "fullName", fullNameZone, setFullNameZone)}
@@ -1159,17 +1544,37 @@ function UploadDocumentForm() {
                           top: `${fullNameZone.y * 100}%`,
                           width: `${fullNameZone.w * 100}%`,
                           height: `${fullNameZone.h * 100}%`,
-                          minHeight: "32px",
+                          minHeight: "30px",
                           cursor: activeDragField === "fullName" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-blue-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-blue-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        title="Drag to position Full Name • Use corner/edges to resize"
                       >
-                        <span>Full Name: {recipientName || "Name"}</span>
-                        <Move className="h-3.5 w-3.5 opacity-70" />
+                        <span className="truncate">Full Name: {recipientName || "Name"}</span>
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+                        {/* Resize handles */}
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, "e")}
+                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-blue-500/30 rounded-full"
+                          title="Drag edge to change width"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, "s")}
+                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-blue-500/30 rounded-full"
+                          title="Drag edge to change height"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, "se")}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-blue-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                          title="Drag corner to resize width & height"
+                        >
+                          <div className="w-1 h-1 bg-blue-600 rounded-full" />
+                        </div>
                       </div>
                     )}
 
-                    {/* Draggable Job Title */}
+                    {/* Draggable & Resizable Job Title */}
                     {reqJobTitle && (
                       <div
                         onMouseDown={(e) => handleFieldMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone)}
@@ -1179,17 +1584,37 @@ function UploadDocumentForm() {
                           top: `${jobTitleZone.y * 100}%`,
                           width: `${jobTitleZone.w * 100}%`,
                           height: `${jobTitleZone.h * 100}%`,
-                          minHeight: "32px",
+                          minHeight: "30px",
                           cursor: activeDragField === "jobTitle" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-indigo-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-indigo-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        title="Drag to position Job Title • Use corner/edges to resize"
                       >
-                        <span>Job Title: Director</span>
-                        <Move className="h-3.5 w-3.5 opacity-70" />
+                        <span className="truncate">Job Title: Director</span>
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+                        {/* Resize handles */}
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, "e")}
+                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-indigo-500/30 rounded-full"
+                          title="Drag edge to change width"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, "s")}
+                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-indigo-500/30 rounded-full"
+                          title="Drag edge to change height"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, "se")}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-indigo-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                          title="Drag corner to resize width & height"
+                        >
+                          <div className="w-1 h-1 bg-indigo-600 rounded-full" />
+                        </div>
                       </div>
                     )}
 
-                    {/* Draggable Email */}
+                    {/* Draggable & Resizable Email */}
                     {reqEmail && (
                       <div
                         onMouseDown={(e) => handleFieldMouseDown(e, "email", emailZone, setEmailZone)}
@@ -1199,17 +1624,37 @@ function UploadDocumentForm() {
                           top: `${emailZone.y * 100}%`,
                           width: `${emailZone.w * 100}%`,
                           height: `${emailZone.h * 100}%`,
-                          minHeight: "32px",
+                          minHeight: "30px",
                           cursor: activeDragField === "email" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-emerald-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-emerald-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        title="Drag to position Email • Use corner/edges to resize"
                       >
-                        <span>Email: {recipientEmail || "email@company.com"}</span>
-                        <Move className="h-3.5 w-3.5 opacity-70" />
+                        <span className="truncate">Email: {recipientEmail || "email@company.com"}</span>
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+                        {/* Resize handles */}
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, "e")}
+                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-emerald-500/30 rounded-full"
+                          title="Drag edge to change width"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, "s")}
+                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-emerald-500/30 rounded-full"
+                          title="Drag edge to change height"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, "se")}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                          title="Drag corner to resize width & height"
+                        >
+                          <div className="w-1 h-1 bg-emerald-600 rounded-full" />
+                        </div>
                       </div>
                     )}
 
-                    {/* Draggable Date */}
+                    {/* Draggable & Resizable Date */}
                     {reqDate && (
                       <div
                         onMouseDown={(e) => handleFieldMouseDown(e, "date", dateZone, setDateZone)}
@@ -1219,15 +1664,172 @@ function UploadDocumentForm() {
                           top: `${dateZone.y * 100}%`,
                           width: `${dateZone.w * 100}%`,
                           height: `${dateZone.h * 100}%`,
-                          minHeight: "32px",
+                          minHeight: "30px",
                           cursor: activeDragField === "date" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-amber-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20"
+                        className="border-2 border-dashed border-amber-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        title="Drag to position Date • Use corner/edges to resize"
                       >
-                        <span>Date Signed</span>
-                        <Move className="h-3.5 w-3.5 opacity-70" />
+                        <span className="truncate">Date Signed</span>
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+                        {/* Resize handles */}
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, "e")}
+                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-amber-500/30 rounded-full"
+                          title="Drag edge to change width"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, "s")}
+                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-amber-500/30 rounded-full"
+                          title="Drag edge to change height"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, "se")}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-amber-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                          title="Drag corner to resize width & height"
+                        >
+                          <div className="w-1 h-1 bg-amber-600 rounded-full" />
+                        </div>
                       </div>
                     )}
+
+                    {/* Draggable & Resizable Custom Text Field */}
+                    {reqTextField && (
+                      <div
+                        onMouseDown={(e) => handleFieldMouseDown(e, "textField", textZone, setTextZone)}
+                        style={{
+                          position: "absolute",
+                          left: `${textZone.x * 100}%`,
+                          top: `${textZone.y * 100}%`,
+                          width: `${textZone.w * 100}%`,
+                          height: `${textZone.h * 100}%`,
+                          minHeight: "30px",
+                          cursor: activeDragField === "textField" ? "grabbing" : "grab",
+                        }}
+                        className="border-2 border-dashed border-purple-500 bg-purple-50/80 dark:bg-purple-950/30 rounded-md px-2 flex items-center justify-between text-xs text-purple-950 dark:text-purple-200 font-semibold shadow-md z-20 group select-none"
+                        title="Drag to position Text Field • Use corner/edges to resize"
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Type className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                          <span className="truncate">{textLabel || "Custom Text"}</span>
+                        </div>
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+                        {/* Resize handles */}
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "textField", textZone, setTextZone, "e")}
+                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-purple-500/30 rounded-full"
+                          title="Drag edge to change width"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "textField", textZone, setTextZone, "s")}
+                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-purple-500/30 rounded-full"
+                          title="Drag edge to change height"
+                        />
+                        <div
+                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "textField", textZone, setTextZone, "se")}
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                          title="Drag corner to resize width & height"
+                        >
+                          <div className="w-1 h-1 bg-purple-600 rounded-full" />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Draggable & Resizable Extra Text Fields */}
+                    {extraTextFields.map((et, idx) => (
+                      <div
+                        key={et.id}
+                        onMouseDown={(e) =>
+                          handleFieldMouseDown(e, `extraText-${et.id}`, et.zone, (updater) => {
+                            setExtraTextFields((prev) =>
+                              prev.map((item) =>
+                                item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                              )
+                            )
+                          })
+                        }
+                        style={{
+                          position: "absolute",
+                          left: `${et.zone.x * 100}%`,
+                          top: `${et.zone.y * 100}%`,
+                          width: `${et.zone.w * 100}%`,
+                          height: `${et.zone.h * 100}%`,
+                          minHeight: "30px",
+                          cursor: activeDragField === `extraText-${et.id}` ? "grabbing" : "grab",
+                        }}
+                        className="border-2 border-dashed border-teal-500 bg-teal-50/80 dark:bg-teal-950/30 rounded-md px-2 flex items-center justify-between text-xs text-teal-950 dark:text-teal-200 font-semibold shadow-md z-20 group select-none"
+                        title="Drag to position Text Field • Use corner/edges to resize"
+                      >
+                        <div className="flex items-center gap-1.5 truncate">
+                          <Type className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                          <span className="truncate">{et.label || `Text Field ${idx + 2}`}</span>
+                        </div>
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+
+                        {/* Resize handles */}
+                        <div
+                          onMouseDown={(e) =>
+                            handleFieldResizeMouseDown(
+                              e,
+                              `extraText-${et.id}`,
+                              et.zone,
+                              (updater) => {
+                                setExtraTextFields((prev) =>
+                                  prev.map((item) =>
+                                    item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                                  )
+                                )
+                              },
+                              "e"
+                            )
+                          }
+                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-teal-500/30 rounded-full"
+                          title="Drag edge to change width"
+                        />
+                        <div
+                          onMouseDown={(e) =>
+                            handleFieldResizeMouseDown(
+                              e,
+                              `extraText-${et.id}`,
+                              et.zone,
+                              (updater) => {
+                                setExtraTextFields((prev) =>
+                                  prev.map((item) =>
+                                    item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                                  )
+                                )
+                              },
+                              "s"
+                            )
+                          }
+                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-teal-500/30 rounded-full"
+                          title="Drag edge to change height"
+                        />
+                        <div
+                          onMouseDown={(e) =>
+                            handleFieldResizeMouseDown(
+                              e,
+                              `extraText-${et.id}`,
+                              et.zone,
+                              (updater) => {
+                                setExtraTextFields((prev) =>
+                                  prev.map((item) =>
+                                    item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                                  )
+                                )
+                              },
+                              "se"
+                            )
+                          }
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-teal-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                          title="Drag corner to resize width & height"
+                        >
+                          <div className="w-1 h-1 bg-teal-600 rounded-full" />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
