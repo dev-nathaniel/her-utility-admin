@@ -348,8 +348,8 @@ function PdfPageCanvasComponent({
         // Instantaneous buffer swap: zero flicker, 100% smooth visual transition
         canvas.width = Math.floor(viewport.width)
         canvas.height = Math.floor(viewport.height)
-        canvas.style.width = `${Math.floor(displayWidth)}px`
-        canvas.style.height = `${Math.floor(displayHeight)}px`
+        canvas.style.width = "100%"
+        canvas.style.height = "100%"
 
         const ctx = canvas.getContext("2d")
         ctx?.drawImage(offscreen, 0, 0)
@@ -402,8 +402,8 @@ function PdfPageCanvasComponent({
         transform: targetWidth ? undefined : `scale(${scale})`,
         transformOrigin: "top center",
         transition: "transform 150ms ease-out",
-        width: pageSize.width,
-        height: pageSize.height,
+        width: targetWidth ? "100%" : pageSize.width,
+        height: targetWidth ? "100%" : pageSize.height,
       }}
       className={`relative bg-white select-none shrink-0 overflow-hidden ${className || "shadow-2xl rounded-lg border"}`}
     >

@@ -22,11 +22,6 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { apiClient, type CompanyData } from "@/lib/api-client"
 import { PdfPageCanvas } from "@/components/pdf-page-canvas"
-import {
-  TransformWrapper,
-  TransformComponent,
-  type ReactZoomPanPinchRef,
-} from "react-zoom-pan-pinch"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -121,11 +116,19 @@ function UploadDocumentForm() {
   })
   const [activeDragField, setActiveDragField] = useState<string | null>(null)
   const previewContainerRef = useRef<HTMLDivElement>(null)
-  const transformRef = useRef<ReactZoomPanPinchRef | null>(null)
+  const studioViewportRef = useRef<HTMLDivElement>(null)
 
   // Studio tool states (Select Fields vs Pan Document)
   const [canvasTool, setCanvasTool] = useState<"select" | "hand">("select")
   const [isSpacePressed, setIsSpacePressed] = useState(false)
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number }>({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  })
+  const isPanningRef = useRef(false)
 
   // Hold Spacebar to temporarily activate Pan mode (universal Figma / Acrobat standard)
   useEffect(() => {
@@ -149,6 +152,21 @@ function UploadDocumentForm() {
       window.removeEventListener("keydown", onKeyDown)
       window.removeEventListener("keyup", onKeyUp)
     }
+  }, [])
+
+  // Ctrl / Cmd + Mouse Wheel smooth zoom of the PDF
+  useEffect(() => {
+    const vp = studioViewportRef.current
+    if (!vp) return
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        const delta = e.deltaY < 0 ? 0.15 : -0.15
+        setZoomScale((z) => Math.max(0.5, Math.min(2.0, Number((z + delta).toFixed(2)))))
+      }
+    }
+    vp.addEventListener("wheel", onWheel, { passive: false })
+    return () => vp.removeEventListener("wheel", onWheel)
   }, [])
 
   // Required Field Toggles (Only signature is mandatory by default; other fields require explicit admin toggle)
@@ -353,7 +371,8 @@ function UploadDocumentForm() {
       setTargetPage((prev) => (prev > numPages ? 1 : prev))
       if (width && height && width > 0) {
         const aspect = height / width
-        const baseW = 760
+        const vpWidth = studioViewportRef.current?.clientWidth
+        const baseW = vpWidth ? Math.max(500, Math.min(840, vpWidth - 48)) : 760
         setDocDimensions({
           width: baseW,
           height: Math.round(baseW * aspect),
@@ -367,6 +386,51 @@ function UploadDocumentForm() {
     setDetectedTotalPages(total)
     setTargetPage((prev) => (prev > total ? 1 : prev))
   }, [])
+
+  // Smooth mouse drag panning of the PDF document across the studio viewport
+  const handleViewportMouseDown = (e: React.MouseEvent) => {
+    // When in select mode, don't initiate pan if user clicked a field, input, or resize handle
+    if (canvasTool === "select" && !isSpacePressed) {
+      const isField = (e.target as HTMLElement).closest("[data-canvas-field]")
+      const isInput = (e.target as HTMLElement).tagName === "INPUT"
+      if (isField || isInput) return
+      // In select mode, only drag to pan if clicking outside the document sheet (the neutral background)
+      const isDocSheet = (e.target as HTMLElement).closest("[data-doc-sheet]")
+      if (isDocSheet) return
+    }
+
+    const vp = studioViewportRef.current
+    if (!vp) return
+
+    e.preventDefault()
+    isPanningRef.current = true
+    setIsPanning(true)
+
+    panStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: vp.scrollLeft,
+      scrollTop: vp.scrollTop,
+    }
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isPanningRef.current || !studioViewportRef.current) return
+      const dx = moveEvent.clientX - panStartRef.current.x
+      const dy = moveEvent.clientY - panStartRef.current.y
+      studioViewportRef.current.scrollLeft = panStartRef.current.scrollLeft - dx
+      studioViewportRef.current.scrollTop = panStartRef.current.scrollTop - dy
+    }
+
+    const onMouseUp = () => {
+      isPanningRef.current = false
+      setIsPanning(false)
+      window.removeEventListener("mousemove", onMouseMove)
+      window.removeEventListener("mouseup", onMouseUp)
+    }
+
+    window.addEventListener("mousemove", onMouseMove)
+    window.addEventListener("mouseup", onMouseUp)
+  }
 
 
   // Mouse Drag to Move ANY Field (Zero lag, 1:1 instantaneous cursor tracking, RAF throttled)
@@ -1602,7 +1666,7 @@ function UploadDocumentForm() {
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => transformRef.current?.zoomIn(0.15)}
+                          onClick={() => setZoomScale((z) => Math.min(2.0, Number((z + 0.15).toFixed(2))))}
                           className="h-7 w-7 p-0"
                           title="Zoom In (+15%)"
                         >
@@ -1613,7 +1677,7 @@ function UploadDocumentForm() {
                             type="button"
                             variant="ghost"
                             size="sm"
-                            onClick={() => transformRef.current?.resetTransform()}
+                            onClick={() => setZoomScale(1.0)}
                             className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
                             title="Reset to 100% Fit"
                           >
@@ -1624,59 +1688,48 @@ function UploadDocumentForm() {
                     </div>
                   </div>
 
-                  {/* Interactive Document Studio Viewport Powered by react-zoom-pan-pinch */}
-                  <div className="w-full bg-slate-200/80 dark:bg-slate-950/80 rounded-xl border min-h-[640px] max-h-[820px] shadow-inner relative overflow-hidden flex flex-col">
-                    <TransformWrapper
-                      ref={transformRef}
-                      initialScale={1.0}
-                      minScale={0.4}
-                      maxScale={3.0}
-                      centerOnInit={true}
-                      limitToBounds={false}
-                      wheel={{ step: 0.08, smoothStep: 0.005 }}
-                      pinch={{ step: 5 }}
-                      doubleClick={{ disabled: true }}
-                      panning={{
-                        disabled: canvasTool === "select" && !isSpacePressed,
-                        velocityDisabled: false,
-                      }}
-                      onTransformed={(_, state) => {
-                        setZoomScale(Number(state.scale.toFixed(2)))
-                      }}
+                  {/* Interactive Document Studio Viewport */}
+                  <div
+                    ref={studioViewportRef}
+                    onMouseDown={handleViewportMouseDown}
+                    className={cn(
+                      "w-full overflow-auto bg-slate-200/80 dark:bg-slate-950/80 rounded-xl border min-h-[640px] max-h-[820px] shadow-inner relative transition-colors select-none",
+                      canvasTool === "hand" || isSpacePressed
+                        ? isPanning ? "cursor-grabbing" : "cursor-grab"
+                        : "cursor-default"
+                    )}
+                  >
+                    <div
+                      className="min-w-full min-h-full p-6 flex items-start justify-center"
+                      data-pan-canvas="true"
                     >
-                      <TransformComponent
-                        wrapperClass="!w-full !h-full min-h-[640px] max-h-[820px] overflow-hidden"
-                        wrapperStyle={{ width: "100%", height: "100%", minHeight: "640px", maxHeight: "820px" }}
-                        contentClass={cn(
-                          "min-w-full min-h-full p-8 flex items-center justify-center",
+                      <div
+                        ref={previewContainerRef}
+                        data-doc-sheet="true"
+                        style={{
+                          width: `${Math.round(docDimensions.width * zoomScale)}px`,
+                          height: `${Math.round(docDimensions.height * zoomScale)}px`,
+                          transition: isPanning ? "none" : "width 0.15s ease-out, height 0.15s ease-out",
+                        }}
+                        className={cn(
+                          "relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none shrink-0",
                           canvasTool === "hand" || isSpacePressed ? "cursor-grab active:cursor-grabbing" : "cursor-default"
                         )}
                       >
-                        <div
-                          ref={previewContainerRef}
-                          style={{
-                            width: `${docDimensions.width}px`,
-                            height: `${docDimensions.height}px`,
-                          }}
-                          className={cn(
-                            "relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none shrink-0",
-                            canvasTool === "hand" || isSpacePressed ? "cursor-grab active:cursor-grabbing" : "cursor-default"
-                          )}
-                        >
-                          {selectedFile ? (
-                            <PdfPageCanvas
-                              file={selectedFile}
-                              pageNumber={targetPage}
-                              targetWidth={docDimensions.width}
-                              className="border-0 shadow-none rounded-none"
-                              onLoadSuccess={handlePdfLoadSuccess}
-                              onTotalPages={handlePdfTotalPages}
-                            />
-                          ) : (
-                            <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
-                              No document loaded
-                            </div>
-                          )}
+                        {selectedFile ? (
+                          <PdfPageCanvas
+                            file={selectedFile}
+                            pageNumber={targetPage}
+                            targetWidth={Math.round(docDimensions.width * zoomScale)}
+                            className="border-0 shadow-none rounded-none"
+                            onLoadSuccess={handlePdfLoadSuccess}
+                            onTotalPages={handlePdfTotalPages}
+                          />
+                        ) : (
+                          <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
+                            No document loaded
+                          </div>
+                        )}
 
                     {/* Draggable & Resizable High-Visibility Signature Zone (DocuSign Style) */}
                     <div
@@ -2004,9 +2057,8 @@ function UploadDocumentForm() {
                       </div>
                     ))}
                         </div>
-                      </TransformComponent>
-                    </TransformWrapper>
-                  </div>
+                      </div>
+                    </div>
                 </div>
               </div>
             </div>
