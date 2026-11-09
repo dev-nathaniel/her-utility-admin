@@ -61,7 +61,7 @@ export async function stampTextFieldsOnPdf(
 
     // Position text cleanly inside the box
     const textX = boxX + 4
-    const textY = boxY + Math.max(2, (boxH - fontSize) / 2 + 1)
+    const textY = boxY + (boxH / 2) - (0.35 * fontSize)
 
     try {
       page.drawText(textVal, {

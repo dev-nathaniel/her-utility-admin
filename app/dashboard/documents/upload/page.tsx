@@ -976,84 +976,36 @@ function UploadDocumentForm() {
                 top: `${tf.zone.y * 100}%`,
                 width: `${tf.zone.w * 100}%`,
                 height: `${tf.zone.h * 100}%`,
-                minHeight: "30px",
+                minHeight: "24px",
                 cursor: activeDragField === `customText-${tf.id}` ? "grabbing" : "grab",
               }}
-              className="border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/60 rounded-md px-2 flex items-center justify-between text-xs text-purple-950 dark:text-purple-100 font-semibold shadow-md ring-1 ring-purple-400/40 z-20 group select-none"
+              className="border-2 border-purple-500 bg-purple-50/70 dark:bg-purple-950/60 rounded-xs pl-0.5 pr-1 flex items-center justify-between text-xs text-purple-950 dark:text-purple-100 font-semibold shadow-xs ring-1 ring-purple-400/40 z-20 group select-none"
               title="Drag to position Text Field • Use corner/edges to resize"
             >
-              <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
-                <Type className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                <input
-                  type="text"
-                  value={tf.label}
-                  onChange={(e) => {
-                    const val = e.target.value
-                    setCustomTextFields((prev) =>
-                      prev.map((item) => (item.id === tf.id ? { ...item, label: val } : item))
-                    )
-                  }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    e.stopPropagation()
-                    if (e.key === "Enter" || e.key === "Escape") {
-                      (e.target as HTMLInputElement).blur()
-                    }
-                  }}
-                  placeholder={`Text Field ${idx + 1}`}
-                  title="Click to edit field label directly"
-                  style={{ fontSize: `${tf.fontSize || 11}px` }}
-                  className="w-full bg-transparent border-0 p-0 font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
-                />
-              </div>
-
-              {/* Quick Font Size Controls on Canvas Field */}
-              <div
-                className="flex items-center gap-0.5 bg-purple-100/90 dark:bg-purple-900/70 rounded px-1 py-0.5 mr-1 border border-purple-200 dark:border-purple-800 shrink-0 select-none"
+              <input
+                type="text"
+                value={tf.label}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setCustomTextFields((prev) =>
+                    prev.map((item) => (item.id === tf.id ? { ...item, label: val } : item))
+                  )
+                }}
                 onMouseDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setCustomTextFields((prev) =>
-                      prev.map((item) =>
-                        item.id === tf.id
-                          ? { ...item, fontSize: Math.max(6, (item.fontSize || 11) - 1) }
-                          : item
-                      )
-                    )
-                  }}
-                  className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-xs cursor-pointer"
-                  title="Decrease font size"
-                >
-                  -
-                </button>
-                <span className="text-[10px] font-mono font-bold text-purple-950 dark:text-purple-100 px-0.5 min-w-[24px] text-center">
-                  {tf.fontSize || 11}pt
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setCustomTextFields((prev) =>
-                      prev.map((item) =>
-                        item.id === tf.id
-                          ? { ...item, fontSize: Math.min(36, (item.fontSize || 11) + 1) }
-                          : item
-                      )
-                    )
-                  }}
-                  className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-xs cursor-pointer"
-                  title="Increase font size"
-                >
-                  +
-                </button>
-              </div>
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === "Enter" || e.key === "Escape") {
+                    (e.target as HTMLInputElement).blur()
+                  }
+                }}
+                placeholder={`Text Field ${idx + 1}`}
+                title="Click to edit field text directly"
+                style={{ fontSize: `${tf.fontSize || 11}px` }}
+                className="w-full h-full bg-transparent border-0 p-0 font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text leading-none"
+              />
 
-              <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300 cursor-grab" />
+              <Move className="h-3 w-3 opacity-40 group-hover:opacity-80 shrink-0 text-purple-800 dark:text-purple-300 ml-1 cursor-grab" />
 
               {/* Resize handles */}
               <div
