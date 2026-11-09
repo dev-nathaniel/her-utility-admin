@@ -4,6 +4,7 @@ export interface TextFieldStampItem {
   page: number
   text: string
   zone: { x: number; y: number; w: number; h: number }
+  fontSize?: number
 }
 
 /**
@@ -53,12 +54,14 @@ export async function stampTextFieldsOnPdf(
     const boxW = tf.zone.w * width
     const boxY = height - (tf.zone.y * height) - boxH
 
-    // Font size scaled to box height, clamped reasonably
-    const fontSize = Math.min(12, Math.max(8.5, boxH * 0.45))
+    // Use custom font size if specified, otherwise scale to box height
+    const fontSize = tf.fontSize && tf.fontSize > 0
+      ? tf.fontSize
+      : Math.min(12, Math.max(8.5, boxH * 0.45))
 
     // Position text cleanly inside the box
     const textX = boxX + 4
-    const textY = boxY + (boxH - fontSize) / 2 + 1
+    const textY = boxY + Math.max(2, (boxH - fontSize) / 2 + 1)
 
     try {
       page.drawText(textVal, {

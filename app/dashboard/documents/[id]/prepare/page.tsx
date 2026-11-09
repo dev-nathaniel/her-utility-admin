@@ -124,7 +124,7 @@ export default function PrepareDocumentPage() {
 
   // Custom Text Fields
   const [customTextFields, setCustomTextFields] = useState<
-    Array<{ id: string; label: string; page: number; zone: SignatureZone }>
+    Array<{ id: string; label: string; page: number; zone: SignatureZone; fontSize?: number }>
   >([])
 
   // Signer Details
@@ -805,9 +805,56 @@ export default function PrepareDocumentPage() {
                   }}
                   placeholder={`Text Field ${idx + 1}`}
                   title="Click to edit field label directly"
-                  className="w-full bg-transparent border-0 p-0 text-xs font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
+                  style={{ fontSize: `${tf.fontSize || 11}px` }}
+                  className="w-full bg-transparent border-0 p-0 font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
                 />
               </div>
+
+              {/* Quick Font Size Controls on Canvas Field */}
+              <div
+                className="flex items-center gap-0.5 bg-purple-100/90 dark:bg-purple-900/70 rounded px-1 py-0.5 mr-1 border border-purple-200 dark:border-purple-800 shrink-0 select-none"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setCustomTextFields((prev) =>
+                      prev.map((item) =>
+                        item.id === tf.id
+                          ? { ...item, fontSize: Math.max(6, (item.fontSize || 11) - 1) }
+                          : item
+                      )
+                    )
+                  }}
+                  className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-xs cursor-pointer"
+                  title="Decrease font size"
+                >
+                  -
+                </button>
+                <span className="text-[10px] font-mono font-bold text-purple-950 dark:text-purple-100 px-0.5 min-w-[24px] text-center">
+                  {tf.fontSize || 11}pt
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setCustomTextFields((prev) =>
+                      prev.map((item) =>
+                        item.id === tf.id
+                          ? { ...item, fontSize: Math.min(36, (item.fontSize || 11) + 1) }
+                          : item
+                      )
+                    )
+                  }}
+                  className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-xs cursor-pointer"
+                  title="Increase font size"
+                >
+                  +
+                </button>
+              </div>
+
               <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300 cursor-grab" />
 
               <div
@@ -1445,6 +1492,7 @@ export default function PrepareDocumentPage() {
                         label: `Text Field ${prev.length + 1}`,
                         page: currentVisiblePage || 1,
                         zone: { x: 0.3, y: 0.5, w: 0.35, h: 0.045 },
+                        fontSize: 11,
                       },
                     ])
                   }}
@@ -1496,38 +1544,102 @@ export default function PrepareDocumentPage() {
                       placeholder="Enter field text..."
                       className="h-8 text-xs bg-background"
                     />
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <span className="text-[11px] text-muted-foreground shrink-0">Page:</span>
-                      <Select
-                        value={String(tf.page || 1)}
-                        onValueChange={(val) => {
-                          const p = Number(val)
-                          setCustomTextFields((prev) =>
-                            prev.map((item) => (item.id === tf.id ? { ...item, page: p } : item))
-                          )
-                          scrollToPage(p)
-                        }}
-                      >
-                        <SelectTrigger className="h-7 text-xs flex-1 bg-background">
-                          <SelectValue placeholder={`Page ${tf.page || 1}`} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
-                            <SelectItem key={p} value={String(p)}>
-                              Page {p}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => scrollToPage(tf.page || 1)}
-                        className="h-7 px-2 text-[11px]"
-                      >
-                        Jump
-                      </Button>
+
+                    {/* Font Size & Page Controls */}
+                    <div className="space-y-1.5 pt-0.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground flex items-center gap-1">
+                          <Type className="h-3 w-3" /> Font Size:
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomTextFields((prev) =>
+                                prev.map((item) =>
+                                  item.id === tf.id
+                                    ? { ...item, fontSize: Math.max(6, (item.fontSize || 11) - 1) }
+                                    : item
+                                )
+                              )
+                            }}
+                            className="h-6 w-6 rounded border border-input bg-background hover:bg-muted text-[10px] font-bold flex items-center justify-center cursor-pointer transition-colors"
+                            title="Decrease font size"
+                          >
+                            -
+                          </button>
+                          <Select
+                            value={String(tf.fontSize || 11)}
+                            onValueChange={(val) => {
+                              const size = Number(val)
+                              setCustomTextFields((prev) =>
+                                prev.map((item) => (item.id === tf.id ? { ...item, fontSize: size } : item))
+                              )
+                            }}
+                          >
+                            <SelectTrigger className="h-6 w-[70px] px-1.5 text-[11px] bg-background">
+                              <SelectValue placeholder={`${tf.fontSize || 11} pt`} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {[8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32].map((s) => (
+                                <SelectItem key={s} value={String(s)} className="text-xs">
+                                  {s} pt
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomTextFields((prev) =>
+                                prev.map((item) =>
+                                  item.id === tf.id
+                                    ? { ...item, fontSize: Math.min(36, (item.fontSize || 11) + 1) }
+                                    : item
+                                )
+                              )
+                            }}
+                            className="h-6 w-6 rounded border border-input bg-background hover:bg-muted text-[10px] font-bold flex items-center justify-center cursor-pointer transition-colors"
+                            title="Increase font size"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-0.5">
+                        <span className="text-[11px] text-muted-foreground shrink-0">Page:</span>
+                        <Select
+                          value={String(tf.page || 1)}
+                          onValueChange={(val) => {
+                            const p = Number(val)
+                            setCustomTextFields((prev) =>
+                              prev.map((item) => (item.id === tf.id ? { ...item, page: p } : item))
+                            )
+                            scrollToPage(p)
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-xs flex-1 bg-background">
+                            <SelectValue placeholder={`Page ${tf.page || 1}`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                              <SelectItem key={p} value={String(p)}>
+                                Page {p}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => scrollToPage(tf.page || 1)}
+                          className="h-7 px-2 text-[11px]"
+                        >
+                          Jump
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))

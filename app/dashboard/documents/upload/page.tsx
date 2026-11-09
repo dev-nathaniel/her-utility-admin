@@ -192,7 +192,7 @@ function UploadDocumentForm() {
   const [reqDate, setReqDate] = useState(false)
   const [reqTermsCheck, setReqTermsCheck] = useState(false)
   const [customTextFields, setCustomTextFields] = useState<
-    Array<{ id: string; label: string; page: number; zone: SignatureZone }>
+    Array<{ id: string; label: string; page: number; zone: SignatureZone; fontSize?: number }>
   >([])
 
   // ── DocuSign Flow States (Set Up Envelope & Fields) ──
@@ -1003,9 +1003,56 @@ function UploadDocumentForm() {
                   }}
                   placeholder={`Text Field ${idx + 1}`}
                   title="Click to edit field label directly"
-                  className="w-full bg-transparent border-0 p-0 text-xs font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
+                  style={{ fontSize: `${tf.fontSize || 11}px` }}
+                  className="w-full bg-transparent border-0 p-0 font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
                 />
               </div>
+
+              {/* Quick Font Size Controls on Canvas Field */}
+              <div
+                className="flex items-center gap-0.5 bg-purple-100/90 dark:bg-purple-900/70 rounded px-1 py-0.5 mr-1 border border-purple-200 dark:border-purple-800 shrink-0 select-none"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setCustomTextFields((prev) =>
+                      prev.map((item) =>
+                        item.id === tf.id
+                          ? { ...item, fontSize: Math.max(6, (item.fontSize || 11) - 1) }
+                          : item
+                      )
+                    )
+                  }}
+                  className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-xs cursor-pointer"
+                  title="Decrease font size"
+                >
+                  -
+                </button>
+                <span className="text-[10px] font-mono font-bold text-purple-950 dark:text-purple-100 px-0.5 min-w-[24px] text-center">
+                  {tf.fontSize || 11}pt
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setCustomTextFields((prev) =>
+                      prev.map((item) =>
+                        item.id === tf.id
+                          ? { ...item, fontSize: Math.min(36, (item.fontSize || 11) + 1) }
+                          : item
+                      )
+                    )
+                  }}
+                  className="w-3.5 h-3.5 flex items-center justify-center text-[10px] font-bold text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800 rounded-xs cursor-pointer"
+                  title="Increase font size"
+                >
+                  +
+                </button>
+              </div>
+
               <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300 cursor-grab" />
 
               {/* Resize handles */}
@@ -1193,6 +1240,7 @@ function UploadDocumentForm() {
           page: tf.page || targetPage || 1,
           text: tf.label.trim(),
           zone: tf.zone,
+          fontSize: tf.fontSize || 11,
         }))
 
       const isPdf =
@@ -2168,6 +2216,7 @@ function UploadDocumentForm() {
                                     w: 0.35,
                                     h: 0.045,
                                   },
+                                  fontSize: 11,
                                 },
                               ])
                             }}
@@ -2214,43 +2263,109 @@ function UploadDocumentForm() {
                                   placeholder="e.g. Account Number, Notes"
                                   className="h-6 text-xs bg-background"
                                 />
-                                {detectedTotalPages > 1 && (
-                                  <div className="flex items-center justify-between text-[11px] pt-0.5">
-                                    <span className="text-muted-foreground">Page:</span>
-                                    <div className="flex items-center gap-1.5">
-                                      <Select
-                                        value={String(tf.page || 1)}
-                                        onValueChange={(val) => {
-                                          const p = Number(val)
+
+                                {/* Font Size & Page Controls */}
+                                <div className="space-y-1 pt-0.5">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="text-muted-foreground flex items-center gap-1">
+                                      <Type className="h-3 w-3" /> Font Size:
+                                    </span>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
                                           setCustomTextFields((prev) =>
                                             prev.map((item) =>
-                                              item.id === tf.id ? { ...item, page: p } : item
+                                              item.id === tf.id
+                                                ? { ...item, fontSize: Math.max(6, (item.fontSize || 11) - 1) }
+                                                : item
                                             )
                                           )
-                                          scrollToPage(p)
+                                        }}
+                                        className="h-5 w-5 rounded border border-input bg-background hover:bg-muted text-[10px] font-bold flex items-center justify-center cursor-pointer transition-colors"
+                                        title="Decrease font size"
+                                      >
+                                        -
+                                      </button>
+                                      <Select
+                                        value={String(tf.fontSize || 11)}
+                                        onValueChange={(val) => {
+                                          const size = Number(val)
+                                          setCustomTextFields((prev) =>
+                                            prev.map((item) =>
+                                              item.id === tf.id ? { ...item, fontSize: size } : item
+                                            )
+                                          )
                                         }}
                                       >
-                                        <SelectTrigger className="h-5 w-20 px-1.5 text-[11px] bg-background">
-                                          <SelectValue placeholder={`Page ${tf.page || 1}`} />
+                                        <SelectTrigger className="h-5 w-[68px] px-1.5 text-[11px] bg-background">
+                                          <SelectValue placeholder={`${tf.fontSize || 11} pt`} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
-                                            <SelectItem key={p} value={String(p)} className="text-xs">
-                                              Page {p}
+                                          {[8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32].map((s) => (
+                                            <SelectItem key={s} value={String(s)} className="text-xs">
+                                              {s} pt
                                             </SelectItem>
                                           ))}
                                         </SelectContent>
                                       </Select>
                                       <button
                                         type="button"
-                                        onClick={() => scrollToPage(tf.page || 1)}
-                                        className="text-[10px] text-primary hover:underline font-medium"
+                                        onClick={() => {
+                                          setCustomTextFields((prev) =>
+                                            prev.map((item) =>
+                                              item.id === tf.id
+                                                ? { ...item, fontSize: Math.min(36, (item.fontSize || 11) + 1) }
+                                                : item
+                                            )
+                                          )
+                                        }}
+                                        className="h-5 w-5 rounded border border-input bg-background hover:bg-muted text-[10px] font-bold flex items-center justify-center cursor-pointer transition-colors"
+                                        title="Increase font size"
                                       >
-                                        Jump
+                                        +
                                       </button>
                                     </div>
                                   </div>
-                                )}
+
+                                  {detectedTotalPages > 1 && (
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="text-muted-foreground">Page:</span>
+                                      <div className="flex items-center gap-1.5">
+                                        <Select
+                                          value={String(tf.page || 1)}
+                                          onValueChange={(val) => {
+                                            const p = Number(val)
+                                            setCustomTextFields((prev) =>
+                                              prev.map((item) =>
+                                                item.id === tf.id ? { ...item, page: p } : item
+                                              )
+                                            )
+                                            scrollToPage(p)
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-5 w-20 px-1.5 text-[11px] bg-background">
+                                            <SelectValue placeholder={`Page ${tf.page || 1}`} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                              <SelectItem key={p} value={String(p)} className="text-xs">
+                                                Page {p}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                        <button
+                                          type="button"
+                                          onClick={() => scrollToPage(tf.page || 1)}
+                                          className="text-[10px] text-primary hover:underline font-medium cursor-pointer"
+                                        >
+                                          Jump
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>
