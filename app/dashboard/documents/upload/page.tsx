@@ -2362,6 +2362,9 @@ function UploadDocumentForm() {
                         onClick={() => {
                           setZoomMode("fit")
                           setZoomScale(1.0)
+                          if (studioViewportRef.current) {
+                            studioViewportRef.current.scrollLeft = 0
+                          }
                         }}
                         className="h-7 px-2.5 text-xs font-medium flex items-center gap-1 border-input"
                         title="Fit Document to Full Available Width (DocuSign Standard)"
@@ -2392,6 +2395,9 @@ function UploadDocumentForm() {
                             if (val === "fit") {
                               setZoomMode("fit")
                               setZoomScale(1.0)
+                              if (studioViewportRef.current) {
+                                studioViewportRef.current.scrollLeft = 0
+                              }
                             } else {
                               setZoomMode("custom")
                               setZoomScale(Number(val) / 100)
@@ -2492,73 +2498,76 @@ function UploadDocumentForm() {
                       onScroll={handleStreamScroll}
                       onMouseDown={handleViewportMouseDown}
                       className={cn(
-                        "flex-1 w-full overflow-auto bg-slate-200/80 dark:bg-slate-950/80 rounded-xl border min-h-[640px] max-h-[820px] shadow-inner p-6 flex flex-col items-center select-none transition-colors",
+                        "flex-1 w-full overflow-auto bg-slate-200/80 dark:bg-slate-950/80 rounded-xl border min-h-[640px] max-h-[820px] shadow-inner p-6 select-none transition-colors",
                         canvasTool === "hand" || isSpacePressed
                           ? isPanning ? "cursor-grabbing" : "cursor-grab"
                           : "cursor-default"
                       )}
                     >
-                      {selectedFile ? (
-                        Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => {
-                          const fieldCount = getPageFieldCount(p)
-                          return (
-                            <div
-                              key={p}
-                              id={`doc-stream-page-${p}`}
-                              data-page-number={p}
-                              className="flex flex-col items-center mb-8 last:mb-2 shrink-0"
-                            >
-                              {/* DocuSign Page Header Banner */}
+                      <div className="min-w-full w-max flex flex-col items-center">
+                        {selectedFile ? (
+                          Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => {
+                            const fieldCount = getPageFieldCount(p)
+                            return (
                               <div
+                                key={p}
+                                id={`doc-stream-page-${p}`}
+                                data-page-number={p}
                                 style={{ width: `${pageWidth}px` }}
-                                className="mb-1.5 px-1 flex items-center justify-between text-xs text-muted-foreground select-none"
+                                className="flex flex-col items-center mb-8 last:mb-2 shrink-0"
                               >
-                                <span className="font-semibold tracking-wide flex items-center gap-1.5">
-                                  <span className="h-2 w-2 rounded-full bg-primary/70 inline-block" />
-                                  PAGE {p} OF {detectedTotalPages}
-                                </span>
-                                <span className="text-[11px] opacity-80">
-                                  {fieldCount > 0 ? `${fieldCount} field(s)` : "No fields"}
-                                </span>
-                              </div>
+                                {/* DocuSign Page Header Banner */}
+                                <div
+                                  style={{ width: `${pageWidth}px` }}
+                                  className="mb-1.5 px-1 flex items-center justify-between text-xs text-muted-foreground select-none"
+                                >
+                                  <span className="font-semibold tracking-wide flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-primary/70 inline-block" />
+                                    PAGE {p} OF {detectedTotalPages}
+                                  </span>
+                                  <span className="text-[11px] opacity-80">
+                                    {fieldCount > 0 ? `${fieldCount} field(s)` : "No fields"}
+                                  </span>
+                                </div>
 
-                              {/* Page Sheet Container */}
-                              <div
-                                id={`doc-page-sheet-${p}`}
-                                data-doc-sheet="true"
-                                style={{
-                                  width: `${pageWidth}px`,
-                                  height: `${pageHeight}px`,
-                                  transition: isPanning ? "none" : "width 0.12s ease-out, height 0.12s ease-out",
-                                }}
-                                className={cn(
-                                  "relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none shrink-0",
-                                  canvasTool === "hand" || isSpacePressed
-                                    ? isPanning ? "cursor-grabbing" : "cursor-grab"
-                                    : "cursor-default"
-                                )}
-                              >
-                                <PdfPageCanvas
-                                  pdfDoc={loadedPdfDoc}
-                                  file={selectedFile}
-                                  pageNumber={p}
-                                  targetWidth={pageWidth}
-                                  className="border-0 shadow-none rounded-none w-full h-full"
-                                  onLoadSuccess={handlePdfLoadSuccess}
-                                  onTotalPages={handlePdfTotalPages}
-                                />
+                                {/* Page Sheet Container */}
+                                <div
+                                  id={`doc-page-sheet-${p}`}
+                                  data-doc-sheet="true"
+                                  style={{
+                                    width: `${pageWidth}px`,
+                                    height: `${pageHeight}px`,
+                                    transition: isPanning ? "none" : "width 0.12s ease-out, height 0.12s ease-out",
+                                  }}
+                                  className={cn(
+                                    "relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none shrink-0",
+                                    canvasTool === "hand" || isSpacePressed
+                                      ? isPanning ? "cursor-grabbing" : "cursor-grab"
+                                      : "cursor-default"
+                                  )}
+                                >
+                                  <PdfPageCanvas
+                                    pdfDoc={loadedPdfDoc}
+                                    file={selectedFile}
+                                    pageNumber={p}
+                                    targetWidth={pageWidth}
+                                    className="border-0 shadow-none rounded-none w-full h-full"
+                                    onLoadSuccess={handlePdfLoadSuccess}
+                                    onTotalPages={handlePdfTotalPages}
+                                  />
 
-                                {/* Per-Page Fields Overlay Layer */}
-                                {renderFieldsForPage(p)}
+                                  {/* Per-Page Fields Overlay Layer */}
+                                  {renderFieldsForPage(p)}
+                                </div>
                               </div>
-                            </div>
-                          )
-                        })
-                      ) : (
-                        <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
-                          No document loaded
-                        </div>
-                      )}
+                            )
+                          })
+                        ) : (
+                          <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
+                            No document loaded
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
