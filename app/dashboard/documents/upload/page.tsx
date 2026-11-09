@@ -127,7 +127,7 @@ function UploadDocumentForm() {
 
   // ── DocuSign Flow States (Set Up Envelope & Fields) ──
   const [docusignStep, setDocusignStep] = useState<"envelope" | "fields">("envelope")
-  const [emailSubject, setEmailSubject] = useState("Complete with DocuSign:")
+  const [emailSubject, setEmailSubject] = useState("Please review and sign document")
   const [emailMessage, setEmailMessage] = useState("")
   const [reminderFrequency, setReminderFrequency] = useState("Every day")
   const [selfSignNeeded, setSelfSignNeeded] = useState(false)
@@ -143,8 +143,8 @@ function UploadDocumentForm() {
   useEffect(() => {
     if (documentName) {
       setEmailSubject((prev) => {
-        if (!prev || prev === "Complete with DocuSign:" || prev.startsWith("Complete with DocuSign:")) {
-          return `Complete with DocuSign: ${documentName}`
+        if (!prev || prev === "Please review and sign document" || prev.startsWith("Please review and sign:")) {
+          return `Please review and sign: ${documentName}`
         }
         return prev
       })
@@ -843,11 +843,6 @@ function UploadDocumentForm() {
                                 <p className="font-semibold text-sm text-foreground truncate" title={file.name}>
                                   {idx === activeFileIndex && documentName ? documentName : file.name}
                                 </p>
-                                {uploadedFiles.length > 1 && isSelected && (
-                                  <Badge variant="outline" className="text-[10px] text-primary border-primary/30 shrink-0">
-                                    Signing Target
-                                  </Badge>
-                                )}
                               </div>
                               <p className="text-xs text-muted-foreground mt-0.5">
                                 {(file.size / 1024).toFixed(0)} KB • Ready for field placement
@@ -1120,7 +1115,7 @@ function UploadDocumentForm() {
                     value={emailSubject}
                     onChange={(e) => setEmailSubject(e.target.value.slice(0, 100))}
                     maxLength={100}
-                    placeholder="Complete with DocuSign:"
+                    placeholder="Please review and sign:"
                     className="h-10 text-sm bg-background border-input"
                   />
                   <div className="text-[11px] text-muted-foreground text-right mt-1">
@@ -1419,7 +1414,7 @@ function UploadDocumentForm() {
                       )}
 
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-foreground">Target Page:</span>
+                        <span className="font-semibold text-foreground text-xs sm:text-sm">Page:</span>
                         <div className="flex items-center gap-1.5">
                           <Button
                             type="button"
@@ -1428,19 +1423,41 @@ function UploadDocumentForm() {
                             disabled={targetPage <= 1}
                             onClick={() => setTargetPage((p) => Math.max(1, p - 1))}
                             className="h-7 w-7 p-0"
+                            title="Previous Page"
                           >
                             <ChevronLeft className="h-3.5 w-3.5" />
                           </Button>
-                          <span className="px-2 font-mono font-medium">
-                            {targetPage} / {detectedTotalPages || 1}
-                          </span>
+
+                          {detectedTotalPages > 1 ? (
+                            <Select
+                              value={String(targetPage)}
+                              onValueChange={(val) => setTargetPage(Number(val))}
+                            >
+                              <SelectTrigger className="h-7 min-w-[100px] text-xs font-mono font-medium px-2 py-0 bg-background border-input">
+                                <SelectValue placeholder={`Page ${targetPage}`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: detectedTotalPages }, (_, i) => i + 1).map((p) => (
+                                  <SelectItem key={p} value={String(p)} className="text-xs">
+                                    Page {p} of {detectedTotalPages}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className="px-2 font-mono font-medium text-xs">
+                              {targetPage} / {detectedTotalPages || 1}
+                            </span>
+                          )}
+
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            disabled={targetPage >= detectedTotalPages}
-                            onClick={() => setTargetPage((p) => p + 1)}
+                            disabled={targetPage >= (detectedTotalPages || 1)}
+                            onClick={() => setTargetPage((p) => Math.min(detectedTotalPages || 1, p + 1))}
                             className="h-7 w-7 p-0"
+                            title="Next Page"
                           >
                             <ChevronRight className="h-3.5 w-3.5" />
                           </Button>
@@ -1485,7 +1502,14 @@ function UploadDocumentForm() {
                       <PdfPageCanvas
                         file={selectedFile}
                         pageNumber={targetPage}
-                        onTotalPages={(total) => setDetectedTotalPages(total)}
+                        onLoadSuccess={({ numPages }) => {
+                          setDetectedTotalPages(numPages)
+                          if (targetPage > numPages) setTargetPage(1)
+                        }}
+                        onTotalPages={(total) => {
+                          setDetectedTotalPages(total)
+                          if (targetPage > total) setTargetPage(1)
+                        }}
                       />
                     ) : (
                       <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
@@ -1493,7 +1517,7 @@ function UploadDocumentForm() {
                       </div>
                     )}
 
-                    {/* Draggable & Resizable Signature Zone */}
+                    {/* Draggable & Resizable High-Visibility Signature Zone (DocuSign Style) */}
                     <div
                       onMouseDown={(e) => handleFieldMouseDown(e, "signature", zone, setZone)}
                       style={{
@@ -1502,35 +1526,40 @@ function UploadDocumentForm() {
                         top: `${zone.y * 100}%`,
                         width: `${zone.w * 100}%`,
                         height: `${zone.h * 100}%`,
-                        minHeight: "38px",
+                        minHeight: "42px",
                         cursor: activeDragField === "signature" ? "grabbing" : "grab",
                       }}
-                      className="border-2 border-dashed border-primary bg-primary/10 rounded-md p-2 flex items-center justify-between text-xs text-primary font-bold shadow-lg z-30 hover:bg-primary/15 transition-colors group select-none"
+                      className="border-2 border-amber-600 bg-[#fff9db] dark:bg-[#382b00] rounded-md p-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-bold shadow-xl ring-2 ring-amber-400/50 hover:bg-[#fff4be] transition-colors group select-none z-30"
                       title="Drag to position Signature • Use corner/edges to resize"
                     >
-                      <div className="flex items-center gap-1.5 truncate">
-                        <PenTool className="h-4 w-4 shrink-0" />
-                        <span className="truncate">Sign Here • {recipientName || "Customer"}</span>
+                      <div className="flex items-center gap-2 truncate">
+                        <div className="bg-[#ffcc00] text-amber-950 font-black text-[10px] px-2 py-0.5 rounded shadow-xs uppercase tracking-wider flex items-center gap-1 shrink-0 border border-amber-600/40">
+                          <PenTool className="h-3 w-3 text-amber-950 stroke-[2.5]" />
+                          <span>SIGN HERE</span>
+                        </div>
+                        <span className="truncate text-xs font-bold text-amber-950 dark:text-amber-100">
+                          {recipientName || "Customer"}
+                        </span>
                       </div>
-                      <Move className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                      <Move className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-300 opacity-80" />
 
                       {/* Resize handles */}
                       <div
                         onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "e")}
-                        className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-primary/30 rounded-full"
+                        className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-amber-600/40 rounded-full"
                         title="Drag right edge to change width"
                       />
                       <div
                         onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "s")}
-                        className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-primary/30 rounded-full"
+                        className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-amber-600/40 rounded-full"
                         title="Drag bottom edge to change height"
                       />
                       <div
                         onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, "se")}
-                        className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-primary rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                        className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-amber-500 border-2 border-white dark:border-amber-950 rounded-xs shadow-md cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
                         title="Drag corner to resize width & height"
                       >
-                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        <div className="w-1.5 h-1.5 bg-white dark:bg-amber-950 rounded-full" />
                       </div>
                     </div>
 
@@ -1547,7 +1576,7 @@ function UploadDocumentForm() {
                           minHeight: "30px",
                           cursor: activeDragField === "fullName" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-blue-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        className="border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/60 rounded-md px-2 flex items-center justify-between text-xs text-blue-950 dark:text-blue-100 font-semibold shadow-md ring-1 ring-blue-400/40 z-20 group select-none"
                         title="Drag to position Full Name • Use corner/edges to resize"
                       >
                         <span className="truncate">Full Name: {recipientName || "Name"}</span>
@@ -1587,7 +1616,7 @@ function UploadDocumentForm() {
                           minHeight: "30px",
                           cursor: activeDragField === "jobTitle" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-indigo-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        className="border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 rounded-md px-2 flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-100 font-semibold shadow-md ring-1 ring-indigo-400/40 z-20 group select-none"
                         title="Drag to position Job Title • Use corner/edges to resize"
                       >
                         <span className="truncate">Job Title: Director</span>
@@ -1627,7 +1656,7 @@ function UploadDocumentForm() {
                           minHeight: "30px",
                           cursor: activeDragField === "email" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-emerald-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        className="border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 rounded-md px-2 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-100 font-semibold shadow-md ring-1 ring-emerald-400/40 z-20 group select-none"
                         title="Drag to position Email • Use corner/edges to resize"
                       >
                         <span className="truncate">Email: {recipientEmail || "email@company.com"}</span>
@@ -1667,7 +1696,7 @@ function UploadDocumentForm() {
                           minHeight: "30px",
                           cursor: activeDragField === "date" ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-amber-500 bg-white rounded-md px-2 flex items-center justify-between text-xs text-slate-950 font-semibold shadow-md z-20 group select-none"
+                        className="border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/60 rounded-md px-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-semibold shadow-md ring-1 ring-amber-400/40 z-20 group select-none"
                         title="Drag to position Date • Use corner/edges to resize"
                       >
                         <span className="truncate">Date Signed</span>

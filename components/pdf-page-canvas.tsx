@@ -11,6 +11,7 @@ export interface PdfPageCanvasProps {
   scale?: number
   contentType?: string | null
   onLoadSuccess?: (info: { numPages: number; width: number; height: number }) => void
+  onTotalPages?: (totalPages: number) => void
   onCanvasClick?: (coords: { x: number; y: number }) => void
   children?: React.ReactNode
   className?: string
@@ -60,6 +61,7 @@ export function PdfPageCanvas({
   scale = 1.0,
   contentType,
   onLoadSuccess,
+  onTotalPages,
   onCanvasClick,
   children,
   className = "",
@@ -97,6 +99,7 @@ export function PdfPageCanvas({
             const h = Math.round(595 * aspect)
             setPageSize({ width: 595, height: h })
             onLoadSuccess?.({ numPages: 1, width: 595, height: h })
+            onTotalPages?.(1)
           }
         }
         return () => {
@@ -122,6 +125,7 @@ export function PdfPageCanvas({
           const h = Math.round(595 * aspect)
           setPageSize({ width: 595, height: h })
           onLoadSuccess?.({ numPages: 1, width: 595, height: h })
+          onTotalPages?.(1)
         }
       }
       return
@@ -129,7 +133,7 @@ export function PdfPageCanvas({
 
     setIsImageFile(false)
     setImageObjectUrl(null)
-  }, [file, url, contentType, onLoadSuccess])
+  }, [file, url, contentType, onLoadSuccess, onTotalPages])
 
   // 2. Load PDF Document from File or URL
   useEffect(() => {
@@ -206,6 +210,7 @@ export function PdfPageCanvas({
           width: pageSize.width,
           height: pageSize.height,
         })
+        onTotalPages?.(doc.numPages)
       } catch (err: any) {
         console.error("PDF load error:", err)
         if (!isCancelled) {
@@ -220,7 +225,7 @@ export function PdfPageCanvas({
     return () => {
       isCancelled = true
     }
-  }, [file, url, isImageFile, onLoadSuccess])
+  }, [file, url, isImageFile, onLoadSuccess, onTotalPages])
 
   // 3. Render the specific page onto the Canvas
   useEffect(() => {
