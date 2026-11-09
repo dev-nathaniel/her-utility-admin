@@ -56,6 +56,8 @@ import {
   Sparkles,
   Check,
   Type,
+  Hand,
+  MousePointer,
 } from "lucide-react"
 
 export interface SignatureZone {
@@ -108,12 +110,73 @@ function UploadDocumentForm() {
   const [emailZone, setEmailZone] = useState<SignatureZone>({ x: 0.30, y: 0.70, w: 0.40, h: 0.045 })
   const [dateZone, setDateZone] = useState<SignatureZone>({ x: 0.30, y: 0.86, w: 0.38, h: 0.045 })
   const [zoomScale, setZoomScale] = useState<number>(1.0)
+  const [debouncedZoom, setDebouncedZoom] = useState<number>(1.0)
   const [docDimensions, setDocDimensions] = useState<{ width: number; height: number }>({
     width: 760,
     height: 1075,
   })
   const [activeDragField, setActiveDragField] = useState<string | null>(null)
   const previewContainerRef = useRef<HTMLDivElement>(null)
+  const studioViewportRef = useRef<HTMLDivElement>(null)
+
+  // Studio tool & panning states (DocuSign / Figma style)
+  const [canvasTool, setCanvasTool] = useState<"select" | "hand">("select")
+  const [isSpacePressed, setIsSpacePressed] = useState(false)
+  const [isPanning, setIsPanning] = useState(false)
+  const panStartRef = useRef<{ x: number; y: number; scrollLeft: number; scrollTop: number }>({
+    x: 0,
+    y: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  })
+  const isPanningRef = useRef(false)
+
+  // Debounce high-DPI canvas re-rendering so zoom transitions are buttery-smooth 60fps
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedZoom(zoomScale)
+    }, 180)
+    return () => clearTimeout(t)
+  }, [zoomScale])
+
+  // Hold Spacebar to temporarily enter Pan mode (universal Figma / Acrobat standard)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !e.repeat) {
+        const target = e.target as HTMLElement
+        if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA" && !target.isContentEditable) {
+          e.preventDefault()
+          setIsSpacePressed(true)
+        }
+      }
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        setIsSpacePressed(false)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    window.addEventListener("keyup", onKeyUp)
+    return () => {
+      window.removeEventListener("keydown", onKeyDown)
+      window.removeEventListener("keyup", onKeyUp)
+    }
+  }, [])
+
+  // Ctrl / Cmd + Mouse Wheel smooth zoom
+  useEffect(() => {
+    const vp = studioViewportRef.current
+    if (!vp) return
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        const delta = e.deltaY < 0 ? 0.15 : -0.15
+        setZoomScale((z) => Math.max(0.5, Math.min(2.0, Number((z + delta).toFixed(2)))))
+      }
+    }
+    vp.addEventListener("wheel", onWheel, { passive: false })
+    return () => vp.removeEventListener("wheel", onWheel)
+  }, [])
 
   // Required Field Toggles (Only signature is mandatory by default; other fields require explicit admin toggle)
   const [reqSignature, setReqSignature] = useState(true)
@@ -332,6 +395,46 @@ function UploadDocumentForm() {
     setTargetPage((prev) => (prev > total ? 1 : prev))
   }, [])
 
+  // Smooth Studio Panning (Click-and-drag panning anywhere in Hand mode, on backdrop, or with Spacebar)
+  const handleViewportMouseDown = (e: React.MouseEvent) => {
+    // In Select Fields mode, ignore if user clicked directly inside a field
+    if (canvasTool === "select" && !isSpacePressed) {
+      const isField = (e.target as HTMLElement).closest("[data-canvas-field]")
+      if (isField) return
+    }
+
+    e.preventDefault()
+    isPanningRef.current = true
+    setIsPanning(true)
+    const vp = studioViewportRef.current
+    if (!vp) return
+
+    panStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      scrollLeft: vp.scrollLeft,
+      scrollTop: vp.scrollTop,
+    }
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isPanningRef.current || !studioViewportRef.current) return
+      const dx = moveEvent.clientX - panStartRef.current.x
+      const dy = moveEvent.clientY - panStartRef.current.y
+      studioViewportRef.current.scrollLeft = panStartRef.current.scrollLeft - dx
+      studioViewportRef.current.scrollTop = panStartRef.current.scrollTop - dy
+    }
+
+    const onMouseUp = () => {
+      isPanningRef.current = false
+      setIsPanning(false)
+      window.removeEventListener("mousemove", onMouseMove)
+      window.removeEventListener("mouseup", onMouseUp)
+    }
+
+    window.addEventListener("mousemove", onMouseMove)
+    window.addEventListener("mouseup", onMouseUp)
+  }
+
   // Mouse Drag to Move ANY Field (Zero lag, 1:1 instantaneous cursor tracking, RAF throttled)
   const handleFieldMouseDown = (
     e: React.MouseEvent,
@@ -339,6 +442,9 @@ function UploadDocumentForm() {
     currentFieldZone: SignatureZone,
     setFieldZone: (updater: (prev: SignatureZone) => SignatureZone) => void
   ) => {
+    if (canvasTool === "hand" || isSpacePressed) {
+      return
+    }
     e.stopPropagation()
     e.preventDefault()
     setActiveDragField(fieldName)
@@ -397,6 +503,9 @@ function UploadDocumentForm() {
     setFieldZone: (updater: (prev: SignatureZone) => SignatureZone) => void,
     direction: "se" | "e" | "s" = "se"
   ) => {
+    if (canvasTool === "hand" || isSpacePressed) {
+      return
+    }
     e.stopPropagation()
     e.preventDefault()
     setActiveDragField(`resize-${fieldName}`)
@@ -1488,76 +1597,146 @@ function UploadDocumentForm() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setZoomScale((z) => Math.max(0.6, Number((z - 0.1).toFixed(1))))}
-                        className="h-7 px-2"
-                      >
-                        <ZoomOut className="h-3.5 w-3.5 mr-1" /> Zoom Out
-                      </Button>
-                      <button
-                        type="button"
-                        onClick={() => setZoomScale(1.0)}
-                        className="font-mono text-muted-foreground hover:text-foreground cursor-pointer px-1 text-xs"
-                        title="Click to reset zoom to 100%"
-                      >
-                        {Math.round(zoomScale * 100)}%
-                      </button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setZoomScale((z) => Math.min(1.8, Number((z + 0.1).toFixed(1))))}
-                        className="h-7 px-2"
-                      >
-                        <ZoomIn className="h-3.5 w-3.5 mr-1" /> Zoom In
-                      </Button>
-                      {zoomScale !== 1.0 && (
+                    {/* Tool Switcher & Smooth Zoom Controls */}
+                    <div className="flex items-center gap-2">
+                      {/* Tool Switcher: Select Fields vs Pan Document */}
+                      <div className="flex items-center rounded-lg border bg-muted/60 p-0.5 gap-0.5">
+                        <Button
+                          type="button"
+                          variant={canvasTool === "select" ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setCanvasTool("select")}
+                          className={`h-7 px-2.5 text-xs font-medium gap-1.5 ${
+                            canvasTool === "select"
+                              ? "bg-background text-foreground shadow-xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                          title="Select & Move Fields (V)"
+                        >
+                          <MousePointer className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Select</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={canvasTool === "hand" ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setCanvasTool("hand")}
+                          className={`h-7 px-2.5 text-xs font-medium gap-1.5 ${
+                            canvasTool === "hand"
+                              ? "bg-background text-foreground shadow-xs"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                          title="Pan Document (H or hold Spacebar)"
+                        >
+                          <Hand className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Pan</span>
+                        </Button>
+                      </div>
+
+                      {/* Smooth Zoom Controls */}
+                      <div className="flex items-center gap-1 border-l pl-2">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => setZoomScale(1.0)}
-                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                          title="Reset to 100%"
+                          onClick={() => setZoomScale((z) => Math.max(0.5, Number((z - 0.15).toFixed(2))))}
+                          className="h-7 w-7 p-0"
+                          title="Zoom Out (-15%)"
                         >
-                          Reset
+                          <ZoomOut className="h-3.5 w-3.5" />
                         </Button>
-                      )}
+                        <Select
+                          value={String(Math.round(zoomScale * 100))}
+                          onValueChange={(val) => setZoomScale(Number(val) / 100)}
+                        >
+                          <SelectTrigger className="h-7 w-[78px] px-2 font-mono text-xs bg-background border-input">
+                            <SelectValue placeholder={`${Math.round(zoomScale * 100)}%`} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="50">50%</SelectItem>
+                            <SelectItem value="75">75%</SelectItem>
+                            <SelectItem value="90">90%</SelectItem>
+                            <SelectItem value="100">100%</SelectItem>
+                            <SelectItem value="115">115%</SelectItem>
+                            <SelectItem value="130">130%</SelectItem>
+                            <SelectItem value="150">150%</SelectItem>
+                            <SelectItem value="175">175%</SelectItem>
+                            <SelectItem value="200">200%</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setZoomScale((z) => Math.min(2.0, Number((z + 0.15).toFixed(2))))}
+                          className="h-7 w-7 p-0"
+                          title="Zoom In (+15%)"
+                        >
+                          <ZoomIn className="h-3.5 w-3.5" />
+                        </Button>
+                        {zoomScale !== 1.0 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setZoomScale(1.0)}
+                            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            title="Reset to 100% Fit"
+                          >
+                            Fit
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* Interactive Document Studio Viewport */}
-                  <div className="w-full overflow-auto bg-slate-100/90 dark:bg-slate-950/80 rounded-xl border p-4 sm:p-6 flex justify-center items-start min-h-[640px] max-h-[820px] shadow-inner">
+                  {/* Interactive Document Studio Viewport with Panning Canvas */}
+                  <div
+                    ref={studioViewportRef}
+                    onMouseDown={handleViewportMouseDown}
+                    className={cn(
+                      "w-full overflow-auto bg-slate-200/80 dark:bg-slate-950/80 rounded-xl border min-h-[640px] max-h-[820px] shadow-inner relative transition-colors select-none",
+                      (canvasTool === "hand" || isSpacePressed)
+                        ? isPanning ? "cursor-grabbing" : "cursor-grab"
+                        : "cursor-default"
+                    )}
+                  >
                     <div
-                      ref={previewContainerRef}
-                      style={{
-                        width: `${Math.round(docDimensions.width * zoomScale)}px`,
-                        height: `${Math.round(docDimensions.height * zoomScale)}px`,
-                        transition: "width 0.15s ease-out, height 0.15s ease-out",
-                      }}
-                      className="relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none cursor-default shrink-0 mx-auto"
+                      className="min-w-full min-h-full p-8 flex items-center justify-center inline-flex"
+                      data-pan-canvas="true"
                     >
-                      {selectedFile ? (
-                        <PdfPageCanvas
-                          file={selectedFile}
-                          pageNumber={targetPage}
-                          targetWidth={Math.round(docDimensions.width * zoomScale)}
-                          className="border-0 shadow-none rounded-none"
-                          onLoadSuccess={handlePdfLoadSuccess}
-                          onTotalPages={handlePdfTotalPages}
-                        />
-                      ) : (
-                        <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
-                          No document loaded
-                        </div>
-                      )}
+                      <div
+                        ref={previewContainerRef}
+                        style={{
+                          width: `${Math.round(docDimensions.width * zoomScale)}px`,
+                          height: `${Math.round(docDimensions.height * zoomScale)}px`,
+                          transition: isPanning ? "none" : "width 0.12s ease-out, height 0.12s ease-out",
+                        }}
+                        className={cn(
+                          "relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none shrink-0",
+                          (canvasTool === "hand" || isSpacePressed)
+                            ? isPanning ? "cursor-grabbing" : "cursor-grab"
+                            : "cursor-default"
+                        )}
+                      >
+                        {selectedFile ? (
+                          <PdfPageCanvas
+                            file={selectedFile}
+                            pageNumber={targetPage}
+                            targetWidth={Math.round(docDimensions.width * debouncedZoom)}
+                            className="border-0 shadow-none rounded-none"
+                            onLoadSuccess={handlePdfLoadSuccess}
+                            onTotalPages={handlePdfTotalPages}
+                          />
+                        ) : (
+                          <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
+                            No document loaded
+                          </div>
+                        )}
 
                     {/* Draggable & Resizable High-Visibility Signature Zone (DocuSign Style) */}
                     <div
+                      data-canvas-field="true"
                       onMouseDown={(e) => handleFieldMouseDown(e, "signature", zone, setZone)}
                       style={{
                         position: "absolute",
@@ -1605,6 +1784,7 @@ function UploadDocumentForm() {
                     {/* Draggable & Resizable Full Name */}
                     {reqFullName && (
                       <div
+                        data-canvas-field="true"
                         onMouseDown={(e) => handleFieldMouseDown(e, "fullName", fullNameZone, setFullNameZone)}
                         style={{
                           position: "absolute",
@@ -1645,6 +1825,7 @@ function UploadDocumentForm() {
                     {/* Draggable & Resizable Job Title */}
                     {reqJobTitle && (
                       <div
+                        data-canvas-field="true"
                         onMouseDown={(e) => handleFieldMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone)}
                         style={{
                           position: "absolute",
@@ -1685,6 +1866,7 @@ function UploadDocumentForm() {
                     {/* Draggable & Resizable Email */}
                     {reqEmail && (
                       <div
+                        data-canvas-field="true"
                         onMouseDown={(e) => handleFieldMouseDown(e, "email", emailZone, setEmailZone)}
                         style={{
                           position: "absolute",
@@ -1725,6 +1907,7 @@ function UploadDocumentForm() {
                     {/* Draggable & Resizable Date */}
                     {reqDate && (
                       <div
+                        data-canvas-field="true"
                         onMouseDown={(e) => handleFieldMouseDown(e, "date", dateZone, setDateZone)}
                         style={{
                           position: "absolute",
@@ -1765,6 +1948,7 @@ function UploadDocumentForm() {
                     {/* Draggable & Resizable Custom Text Fields */}
                     {customTextFields.map((tf, idx) => (
                       <div
+                        data-canvas-field="true"
                         key={tf.id}
                         onMouseDown={(e) =>
                           handleFieldMouseDown(e, `customText-${tf.id}`, tf.zone, (updater) => {
@@ -1875,6 +2059,7 @@ function UploadDocumentForm() {
                         </div>
                       </div>
                     ))}
+                      </div>
                     </div>
                   </div>
                 </div>

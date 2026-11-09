@@ -90,6 +90,7 @@ function PdfPageCanvasComponent({
   // Track render task to cancel ongoing renders if pageNumber changes rapidly
   const renderTaskRef = useRef<any>(null)
   const currentDocKeyRef = useRef<string | null>(null)
+  const renderedPageKeyRef = useRef<string | null>(null)
 
   // 1. Detect if the file or URL is an image (PNG, JPG, JPEG, WEBP)
   useEffect(() => {
@@ -296,10 +297,17 @@ function PdfPageCanvasComponent({
         renderTaskRef.current = null
       }
 
-      setLoading(true)
+      const safePageNum = Math.max(1, Math.min(pageNumber, pdfDoc.numPages))
+      const pageKey = `${currentDocKeyRef.current}-p${safePageNum}`
+      const isNewPage = renderedPageKeyRef.current !== pageKey
+
+      // Only show full loading overlay on new page or document switch
+      // Re-renders for width/scale happen seamlessly in the background (double-buffered)
+      if (isNewPage) {
+        setLoading(true)
+      }
 
       try {
-        const safePageNum = Math.max(1, Math.min(pageNumber, pdfDoc.numPages))
         const page = await pdfDoc.getPage(safePageNum)
 
         if (isCancelled) return
@@ -319,16 +327,15 @@ function PdfPageCanvasComponent({
         const outputScale = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1.5
         const viewport = page.getViewport({ scale: widthScale * outputScale })
 
-        canvas.width = Math.floor(viewport.width)
-        canvas.height = Math.floor(viewport.height)
-        canvas.style.width = `${Math.floor(displayWidth)}px`
-        canvas.style.height = `${Math.floor(displayHeight)}px`
-
-        const ctx = canvas.getContext("2d")
-        if (!ctx) return
+        // Double buffering: render off-screen first so visible canvas NEVER blanks or flashes
+        const offscreen = document.createElement("canvas")
+        offscreen.width = Math.floor(viewport.width)
+        offscreen.height = Math.floor(viewport.height)
+        const offscreenCtx = offscreen.getContext("2d")
+        if (!offscreenCtx) return
 
         const renderContext = {
-          canvasContext: ctx,
+          canvasContext: offscreenCtx,
           viewport: viewport,
         }
 
@@ -336,10 +343,20 @@ function PdfPageCanvasComponent({
         renderTaskRef.current = task
         await task.promise
 
-        if (!isCancelled) {
-          setLoading(false)
-          renderTaskRef.current = null
-        }
+        if (isCancelled) return
+
+        // Instantaneous buffer swap: zero flicker, 100% smooth visual transition
+        canvas.width = Math.floor(viewport.width)
+        canvas.height = Math.floor(viewport.height)
+        canvas.style.width = `${Math.floor(displayWidth)}px`
+        canvas.style.height = `${Math.floor(displayHeight)}px`
+
+        const ctx = canvas.getContext("2d")
+        ctx?.drawImage(offscreen, 0, 0)
+
+        renderedPageKeyRef.current = pageKey
+        setLoading(false)
+        renderTaskRef.current = null
       } catch (err: any) {
         if (err?.name === "RenderingCancelledException") {
           return // expected when switching pages quickly
