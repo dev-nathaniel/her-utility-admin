@@ -22,6 +22,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox"
 import { apiClient, type CompanyData } from "@/lib/api-client"
 import { PdfPageCanvas } from "@/components/pdf-page-canvas"
+import { stampTextFieldsOnPdf } from "@/lib/pdf-stamper"
 import { toast } from "sonner"
 import {
   ArrowLeft,
@@ -1184,9 +1185,32 @@ function UploadDocumentForm() {
 
       const userId = selectedBusiness.id || selectedBusiness._id
 
-      // 1. Upload Document Form
+      // 1. Stamp any custom text fields directly onto the PDF file before uploading so they are permanently visible in viewers
+      let fileToUpload = selectedFile
+      const activeTextFields = customTextFields
+        .filter((tf) => tf.label && tf.label.trim())
+        .map((tf) => ({
+          page: tf.page || targetPage || 1,
+          text: tf.label.trim(),
+          zone: tf.zone,
+        }))
+
+      const isPdf =
+        selectedFile.type === "application/pdf" ||
+        selectedFile.name.toLowerCase().endsWith(".pdf")
+
+      if (activeTextFields.length > 0 && isPdf) {
+        try {
+          fileToUpload = await stampTextFieldsOnPdf(selectedFile, selectedFile.name, activeTextFields)
+          console.log(`Successfully burned ${activeTextFields.length} text fields onto PDF before upload`)
+        } catch (stampErr) {
+          console.warn("Could not client-stamp PDF text fields, falling back to original:", stampErr)
+        }
+      }
+
+      // 2. Upload Document Form
       const formData = new FormData()
-      formData.append("file", selectedFile)
+      formData.append("file", fileToUpload)
       formData.append("document_name", documentName.trim())
       formData.append("document_type", documentType)
       formData.append("user_id", userId || "")
@@ -1216,7 +1240,7 @@ function UploadDocumentForm() {
       const uploadRes = await apiClient.uploadDocument(formData)
       const docId = uploadRes?.document?.id || uploadRes?.document_id
 
-      // 2. If Signatures Required, configure & dispatch signature request
+      // 3. If Signatures Required, configure & dispatch signature request
       if (signerMode !== "none" && docId) {
         const fields: any[] = []
 
@@ -1291,14 +1315,17 @@ function UploadDocumentForm() {
         }
 
         customTextFields.forEach((tf, idx) => {
+          const textVal = tf.label.trim()
           fields.push({
             id: `f_text_${tf.id || idx + 1}`,
             page: tf.page || targetPage || 1,
             type: "text",
-            label: tf.label.trim() || `Text Field ${idx + 1}`,
+            label: textVal || `Text Field ${idx + 1}`,
+            value: textVal,
+            prefill: textVal,
+            text: textVal,
             required: false,
             rect: tf.zone,
-            prefill: "",
           })
         })
 
