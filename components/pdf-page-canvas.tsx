@@ -9,6 +9,7 @@ export interface PdfPageCanvasProps {
   fallbackImageUrl?: string | null
   pageNumber: number
   scale?: number
+  targetWidth?: number
   contentType?: string | null
   onLoadSuccess?: (info: { numPages: number; width: number; height: number }) => void
   onTotalPages?: (totalPages: number) => void
@@ -59,6 +60,7 @@ function PdfPageCanvasComponent({
   fallbackImageUrl,
   pageNumber = 1,
   scale = 1.0,
+  targetWidth,
   contentType,
   onLoadSuccess,
   onTotalPages,
@@ -104,9 +106,10 @@ function PdfPageCanvasComponent({
           img.src = objUrl
           img.onload = () => {
             const aspect = img.naturalHeight / (img.naturalWidth || 1)
-            const h = Math.round(595 * aspect)
-            setPageSize({ width: 595, height: h })
-            onLoadSuccessRef.current?.({ numPages: 1, width: 595, height: h })
+            const w = targetWidth || 595
+            const h = Math.round(w * aspect)
+            setPageSize({ width: w, height: h })
+            onLoadSuccessRef.current?.({ numPages: 1, width: img.naturalWidth || w, height: img.naturalHeight || h })
             onTotalPagesRef.current?.(1)
           }
         }
@@ -130,9 +133,10 @@ function PdfPageCanvasComponent({
         img.src = url
         img.onload = () => {
           const aspect = img.naturalHeight / (img.naturalWidth || 1)
-          const h = Math.round(595 * aspect)
-          setPageSize({ width: 595, height: h })
-          onLoadSuccessRef.current?.({ numPages: 1, width: 595, height: h })
+          const w = targetWidth || 595
+          const h = Math.round(w * aspect)
+          setPageSize({ width: w, height: h })
+          onLoadSuccessRef.current?.({ numPages: 1, width: img.naturalWidth || w, height: img.naturalHeight || h })
           onTotalPagesRef.current?.(1)
         }
       }
@@ -141,7 +145,7 @@ function PdfPageCanvasComponent({
 
     setIsImageFile(false)
     setImageObjectUrl(null)
-  }, [file, url, contentType])
+  }, [file, url, contentType, targetWidth])
 
   // 2. Load PDF Document from File or URL
   useEffect(() => {
@@ -241,11 +245,21 @@ function PdfPageCanvasComponent({
         })
         currentDocKeyRef.current = docKey
 
-        onLoadSuccessRef.current?.({
-          numPages: doc.numPages,
-          width: pageSize.width,
-          height: pageSize.height,
-        })
+        try {
+          const firstPage = await doc.getPage(1)
+          const vp = firstPage.getViewport({ scale: 1.0 })
+          onLoadSuccessRef.current?.({
+            numPages: doc.numPages,
+            width: Math.round(vp.width || 595),
+            height: Math.round(vp.height || 842),
+          })
+        } catch {
+          onLoadSuccessRef.current?.({
+            numPages: doc.numPages,
+            width: pageSize.width,
+            height: pageSize.height,
+          })
+        }
         onTotalPagesRef.current?.(doc.numPages)
       } catch (err: any) {
         console.error("PDF load error:", err)
@@ -292,13 +306,18 @@ function PdfPageCanvasComponent({
 
         // Base viewport at 72dpi
         const unscaledViewport = page.getViewport({ scale: 1.0 })
-        const displayWidth = unscaledViewport.width
-        const displayHeight = unscaledViewport.height
+        const nativeWidth = unscaledViewport.width || 595
+        const nativeHeight = unscaledViewport.height || 842
+
+        // If targetWidth is specified, calculate scale to fit that width
+        const widthScale = targetWidth ? targetWidth / nativeWidth : (scale || 1.0)
+        const displayWidth = Math.round(nativeWidth * widthScale)
+        const displayHeight = Math.round(nativeHeight * widthScale)
         setPageSize({ width: displayWidth, height: displayHeight })
 
         // Render at higher resolution for crisp readability (2x device pixel ratio)
         const outputScale = typeof window !== "undefined" ? Math.min(window.devicePixelRatio || 1, 2) : 1.5
-        const viewport = page.getViewport({ scale: outputScale })
+        const viewport = page.getViewport({ scale: widthScale * outputScale })
 
         canvas.width = Math.floor(viewport.width)
         canvas.height = Math.floor(viewport.height)
@@ -343,7 +362,7 @@ function PdfPageCanvasComponent({
         } catch {}
       }
     }
-  }, [pdfDoc, pageNumber, isImageFile])
+  }, [pdfDoc, pageNumber, isImageFile, targetWidth, scale])
 
   // 4. Handle Click to Reposition
   const handleOverlayClick = useCallback(
@@ -363,13 +382,13 @@ function PdfPageCanvasComponent({
   return (
     <div
       style={{
-        transform: `scale(${scale})`,
+        transform: targetWidth ? undefined : `scale(${scale})`,
         transformOrigin: "top center",
         transition: "transform 150ms ease-out",
         width: pageSize.width,
         height: pageSize.height,
       }}
-      className={`relative bg-white shadow-2xl rounded-lg border select-none shrink-0 overflow-hidden ${className}`}
+      className={`relative bg-white select-none shrink-0 overflow-hidden ${className || "shadow-2xl rounded-lg border"}`}
     >
       {/* Real Image Rendering if an image file was picked */}
       {isImageFile && imageObjectUrl && (
@@ -448,6 +467,7 @@ export const PdfPageCanvas = React.memo(
     prev.url === next.url &&
     prev.pageNumber === next.pageNumber &&
     prev.scale === next.scale &&
+    prev.targetWidth === next.targetWidth &&
     prev.fallbackImageUrl === next.fallbackImageUrl &&
     prev.className === next.className
 )

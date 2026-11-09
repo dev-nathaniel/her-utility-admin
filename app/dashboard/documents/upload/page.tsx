@@ -108,6 +108,10 @@ function UploadDocumentForm() {
   const [emailZone, setEmailZone] = useState<SignatureZone>({ x: 0.30, y: 0.70, w: 0.40, h: 0.045 })
   const [dateZone, setDateZone] = useState<SignatureZone>({ x: 0.30, y: 0.86, w: 0.38, h: 0.045 })
   const [zoomScale, setZoomScale] = useState<number>(1.0)
+  const [docDimensions, setDocDimensions] = useState<{ width: number; height: number }>({
+    width: 760,
+    height: 1075,
+  })
   const [activeDragField, setActiveDragField] = useState<string | null>(null)
   const previewContainerRef = useRef<HTMLDivElement>(null)
 
@@ -302,13 +306,26 @@ function UploadDocumentForm() {
     setActiveFileIndex(index)
     setSelectedFile(uploadedFiles[index])
     setTargetPage(1)
+    setDetectedTotalPages(1)
+    setDocDimensions({ width: 760, height: 1075 })
   }
 
   // Stable callbacks for PdfPageCanvas so child memo never busts
-  const handlePdfLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    setDetectedTotalPages(numPages)
-    setTargetPage((prev) => (prev > numPages ? 1 : prev))
-  }, [])
+  const handlePdfLoadSuccess = useCallback(
+    ({ numPages, width, height }: { numPages: number; width?: number; height?: number }) => {
+      setDetectedTotalPages(numPages)
+      setTargetPage((prev) => (prev > numPages ? 1 : prev))
+      if (width && height && width > 0) {
+        const aspect = height / width
+        const baseW = 760
+        setDocDimensions({
+          width: baseW,
+          height: Math.round(baseW * aspect),
+        })
+      }
+    },
+    []
+  )
 
   const handlePdfTotalPages = useCallback((total: number) => {
     setDetectedTotalPages(total)
@@ -1481,7 +1498,14 @@ function UploadDocumentForm() {
                       >
                         <ZoomOut className="h-3.5 w-3.5 mr-1" /> Zoom Out
                       </Button>
-                      <span className="font-mono text-muted-foreground">{Math.round(zoomScale * 100)}%</span>
+                      <button
+                        type="button"
+                        onClick={() => setZoomScale(1.0)}
+                        className="font-mono text-muted-foreground hover:text-foreground cursor-pointer px-1 text-xs"
+                        title="Click to reset zoom to 100%"
+                      >
+                        {Math.round(zoomScale * 100)}%
+                      </button>
                       <Button
                         type="button"
                         variant="ghost"
@@ -1491,31 +1515,46 @@ function UploadDocumentForm() {
                       >
                         <ZoomIn className="h-3.5 w-3.5 mr-1" /> Zoom In
                       </Button>
+                      {zoomScale !== 1.0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setZoomScale(1.0)}
+                          className="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                          title="Reset to 100%"
+                        >
+                          Reset
+                        </Button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Interactive Document Canvas with Draggable Zones */}
-                  <div
-                    ref={previewContainerRef}
-                    style={{
-                      transform: `scale(${zoomScale})`,
-                      transformOrigin: "top center",
-                      transition: "transform 0.15s ease-out",
-                    }}
-                    className="relative border rounded-xl shadow-md bg-white overflow-hidden select-none cursor-default mx-auto"
-                  >
-                    {selectedFile ? (
-                      <PdfPageCanvas
-                        file={selectedFile}
-                        pageNumber={targetPage}
-                        onLoadSuccess={handlePdfLoadSuccess}
-                        onTotalPages={handlePdfTotalPages}
-                      />
-                    ) : (
-                      <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
-                        No document loaded
-                      </div>
-                    )}
+                  {/* Interactive Document Studio Viewport */}
+                  <div className="w-full overflow-auto bg-slate-100/90 dark:bg-slate-950/80 rounded-xl border p-4 sm:p-6 flex justify-center items-start min-h-[640px] max-h-[820px] shadow-inner">
+                    <div
+                      ref={previewContainerRef}
+                      style={{
+                        width: `${Math.round(docDimensions.width * zoomScale)}px`,
+                        height: `${Math.round(docDimensions.height * zoomScale)}px`,
+                        transition: "width 0.15s ease-out, height 0.15s ease-out",
+                      }}
+                      className="relative border rounded-xs shadow-2xl bg-white overflow-hidden select-none cursor-default shrink-0 mx-auto"
+                    >
+                      {selectedFile ? (
+                        <PdfPageCanvas
+                          file={selectedFile}
+                          pageNumber={targetPage}
+                          targetWidth={Math.round(docDimensions.width * zoomScale)}
+                          className="border-0 shadow-none rounded-none"
+                          onLoadSuccess={handlePdfLoadSuccess}
+                          onTotalPages={handlePdfTotalPages}
+                        />
+                      ) : (
+                        <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
+                          No document loaded
+                        </div>
+                      )}
 
                     {/* Draggable & Resizable High-Visibility Signature Zone (DocuSign Style) */}
                     <div
@@ -1748,11 +1787,31 @@ function UploadDocumentForm() {
                         className="border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/60 rounded-md px-2 flex items-center justify-between text-xs text-purple-950 dark:text-purple-100 font-semibold shadow-md ring-1 ring-purple-400/40 z-20 group select-none"
                         title="Drag to position Text Field • Use corner/edges to resize"
                       >
-                        <div className="flex items-center gap-1.5 truncate">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-1">
                           <Type className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                          <span className="truncate">{tf.label || `Text Field ${idx + 1}`}</span>
+                          <input
+                            type="text"
+                            value={tf.label}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              setCustomTextFields((prev) =>
+                                prev.map((item) => (item.id === tf.id ? { ...item, label: val } : item))
+                              )
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                            onKeyDown={(e) => {
+                              e.stopPropagation()
+                              if (e.key === "Enter" || e.key === "Escape") {
+                                (e.target as HTMLInputElement).blur()
+                              }
+                            }}
+                            placeholder={`Text Field ${idx + 1}`}
+                            title="Click to edit field label directly"
+                            className="w-full bg-transparent border-0 p-0 text-xs font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text"
+                          />
                         </div>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300" />
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300 cursor-grab" />
 
                         {/* Resize handles */}
                         <div
@@ -1816,6 +1875,7 @@ function UploadDocumentForm() {
                         </div>
                       </div>
                     ))}
+                    </div>
                   </div>
                 </div>
               </div>
