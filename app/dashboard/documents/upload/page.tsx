@@ -118,10 +118,7 @@ function UploadDocumentForm() {
   const [reqEmail, setReqEmail] = useState(false)
   const [reqDate, setReqDate] = useState(false)
   const [reqTermsCheck, setReqTermsCheck] = useState(false)
-  const [reqTextField, setReqTextField] = useState(false)
-  const [textLabel, setTextLabel] = useState("Custom Text")
-  const [textZone, setTextZone] = useState<SignatureZone>({ x: 0.30, y: 0.50, w: 0.35, h: 0.045 })
-  const [extraTextFields, setExtraTextFields] = useState<
+  const [customTextFields, setCustomTextFields] = useState<
     Array<{ id: string; label: string; zone: SignatureZone }>
   >([])
 
@@ -307,7 +304,18 @@ function UploadDocumentForm() {
     setTargetPage(1)
   }
 
-  // Mouse Drag to Move ANY Field (Zero lag, 1:1 instantaneous cursor tracking)
+  // Stable callbacks for PdfPageCanvas so child memo never busts
+  const handlePdfLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
+    setDetectedTotalPages(numPages)
+    setTargetPage((prev) => (prev > numPages ? 1 : prev))
+  }, [])
+
+  const handlePdfTotalPages = useCallback((total: number) => {
+    setDetectedTotalPages(total)
+    setTargetPage((prev) => (prev > total ? 1 : prev))
+  }, [])
+
+  // Mouse Drag to Move ANY Field (Zero lag, 1:1 instantaneous cursor tracking, RAF throttled)
   const handleFieldMouseDown = (
     e: React.MouseEvent,
     fieldName: string,
@@ -323,11 +331,14 @@ function UploadDocumentForm() {
     const initX = currentFieldZone.x
     const initY = currentFieldZone.y
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!previewContainerRef.current) return
+    let rafId: number | null = null
+    let latestEvent: MouseEvent | null = null
+
+    const updatePosition = () => {
+      if (!latestEvent || !previewContainerRef.current) return
       const rect = previewContainerRef.current.getBoundingClientRect()
-      const deltaX = (moveEvent.clientX - startX) / rect.width
-      const deltaY = (moveEvent.clientY - startY) / rect.height
+      const deltaX = (latestEvent.clientX - startX) / rect.width
+      const deltaY = (latestEvent.clientY - startY) / rect.height
 
       const newX = Math.max(0.01, Math.min(0.99 - currentFieldZone.w, initX + deltaX))
       const newY = Math.max(0.01, Math.min(0.99 - currentFieldZone.h, initY + deltaY))
@@ -337,9 +348,21 @@ function UploadDocumentForm() {
         x: Number(newX.toFixed(3)),
         y: Number(newY.toFixed(3)),
       }))
+      rafId = null
+    }
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      latestEvent = moveEvent
+      if (rafId === null) {
+        rafId = requestAnimationFrame(updatePosition)
+      }
     }
 
     const onMouseUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       setActiveDragField(null)
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("mouseup", onMouseUp)
@@ -349,7 +372,7 @@ function UploadDocumentForm() {
     window.addEventListener("mouseup", onMouseUp)
   }
 
-  // Mouse Drag on Resize Handles (Corner 'se', right edge 'e', bottom edge 's')
+  // Mouse Drag on Resize Handles (Corner 'se', right edge 'e', bottom edge 's', RAF throttled)
   const handleFieldResizeMouseDown = (
     e: React.MouseEvent,
     fieldName: string,
@@ -368,11 +391,14 @@ function UploadDocumentForm() {
     const initX = currentFieldZone.x
     const initY = currentFieldZone.y
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      if (!previewContainerRef.current) return
+    let rafId: number | null = null
+    let latestEvent: MouseEvent | null = null
+
+    const updateResize = () => {
+      if (!latestEvent || !previewContainerRef.current) return
       const rect = previewContainerRef.current.getBoundingClientRect()
-      const deltaX = (moveEvent.clientX - startX) / rect.width
-      const deltaY = (moveEvent.clientY - startY) / rect.height
+      const deltaX = (latestEvent.clientX - startX) / rect.width
+      const deltaY = (latestEvent.clientY - startY) / rect.height
 
       setFieldZone((prev: SignatureZone) => {
         let newW = prev.w
@@ -392,9 +418,21 @@ function UploadDocumentForm() {
           h: Number(newH.toFixed(3)),
         }
       })
+      rafId = null
+    }
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      latestEvent = moveEvent
+      if (rafId === null) {
+        rafId = requestAnimationFrame(updateResize)
+      }
     }
 
     const onMouseUp = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
       setActiveDragField(null)
       window.removeEventListener("mousemove", onMouseMove)
       window.removeEventListener("mouseup", onMouseUp)
@@ -618,26 +656,14 @@ function UploadDocumentForm() {
           })
         }
 
-        if (reqTextField) {
+        customTextFields.forEach((tf, idx) => {
           fields.push({
-            id: "f_text_main",
+            id: `f_text_${tf.id || idx + 1}`,
             page: targetPage,
             type: "text",
-            label: textLabel.trim() || "Text Field",
+            label: tf.label.trim() || `Text Field ${idx + 1}`,
             required: false,
-            rect: textZone,
-            prefill: "",
-          })
-        }
-
-        extraTextFields.forEach((et, idx) => {
-          fields.push({
-            id: `f_text_${et.id || idx + 2}`,
-            page: targetPage,
-            type: "text",
-            label: et.label.trim() || `Text Field ${idx + 2}`,
-            required: false,
-            rect: et.zone,
+            rect: tf.zone,
             prefill: "",
           })
         })
@@ -1291,97 +1317,77 @@ function UploadDocumentForm() {
                         <Switch checked={reqDate} onCheckedChange={setReqDate} />
                       </div>
 
-                      {/* Text Field Option */}
-                      <div className="py-1 space-y-2">
+                      {/* Custom Text Fields Section (Direct on-demand additions without toggle) */}
+                      <div className="pt-2 border-t border-border/50 space-y-2">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-xs font-medium">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
                             <Type className="h-3.5 w-3.5 text-purple-600" />
-                            Text Field
+                            Text Fields
                           </div>
-                          <Switch checked={reqTextField} onCheckedChange={setReqTextField} />
-                        </div>
-                        {reqTextField && (
-                          <div className="space-y-1 pl-5.5">
-                            <label className="text-[11px] text-muted-foreground block">
-                              Label / Placeholder:
-                            </label>
-                            <Input
-                              value={textLabel}
-                              onChange={(e) => setTextLabel(e.target.value)}
-                              placeholder="e.g. Account Number, Notes"
-                              className="h-7 text-xs bg-background"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Extra Text Fields */}
-                      {extraTextFields.length > 0 && (
-                        <div className="space-y-2 pt-1 border-t border-border/40">
-                          {extraTextFields.map((et, idx) => (
-                            <div key={et.id} className="p-2 rounded-md border border-border/60 bg-muted/30 space-y-1.5">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-teal-700 dark:text-teal-400">
-                                  <Type className="h-3 w-3" />
-                                  Text Field {idx + 2}
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() =>
-                                    setExtraTextFields((prev) => prev.filter((item) => item.id !== et.id))
-                                  }
-                                  className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                                  title="Remove field"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                              <Input
-                                value={et.label}
-                                onChange={(e) => {
-                                  const val = e.target.value
-                                  setExtraTextFields((prev) =>
-                                    prev.map((item) => (item.id === et.id ? { ...item, label: val } : item))
-                                  )
-                                }}
-                                placeholder="Field Label"
-                                className="h-6 text-xs bg-background"
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Add Text Field Button */}
-                      <div className="pt-1 border-t border-border/50">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!reqTextField) {
-                              setReqTextField(true)
-                            } else {
-                              setExtraTextFields((prev) => [
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomTextFields((prev) => [
                                 ...prev,
                                 {
-                                  id: String(Date.now()),
-                                  label: `Text Field ${prev.length + 2}`,
+                                  id: String(Date.now()) + Math.random().toString(36).substring(2, 6),
+                                  label: `Text Field ${prev.length + 1}`,
                                   zone: {
                                     x: 0.30,
-                                    y: Math.min(0.85, 0.55 + prev.length * 0.06),
+                                    y: Math.min(0.85, 0.48 + prev.length * 0.06),
                                     w: 0.35,
                                     h: 0.045,
                                   },
                                 },
                               ])
-                            }
-                          }}
-                          className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add {reqTextField ? "Another " : ""}Text Field
-                        </button>
+                            }}
+                            className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                            Add Text Field
+                          </button>
+                        </div>
+
+                        {customTextFields.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            {customTextFields.map((tf, idx) => (
+                              <div
+                                key={tf.id}
+                                className="p-2 rounded-md border border-purple-200 dark:border-purple-900/50 bg-purple-50/50 dark:bg-purple-950/20 space-y-1.5"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-[11px] font-semibold text-purple-700 dark:text-purple-300">
+                                    <Type className="h-3 w-3" />
+                                    Text Field {idx + 1}
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() =>
+                                      setCustomTextFields((prev) => prev.filter((item) => item.id !== tf.id))
+                                    }
+                                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                    title="Remove field"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                                <Input
+                                  value={tf.label}
+                                  onChange={(e) => {
+                                    const val = e.target.value
+                                    setCustomTextFields((prev) =>
+                                      prev.map((item) => (item.id === tf.id ? { ...item, label: val } : item))
+                                    )
+                                  }}
+                                  placeholder="e.g. Account Number, Notes"
+                                  className="h-6 text-xs bg-background"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -1502,14 +1508,8 @@ function UploadDocumentForm() {
                       <PdfPageCanvas
                         file={selectedFile}
                         pageNumber={targetPage}
-                        onLoadSuccess={({ numPages }) => {
-                          setDetectedTotalPages(numPages)
-                          if (targetPage > numPages) setTargetPage(1)
-                        }}
-                        onTotalPages={(total) => {
-                          setDetectedTotalPages(total)
-                          if (targetPage > total) setTargetPage(1)
-                        }}
+                        onLoadSuccess={handlePdfLoadSuccess}
+                        onTotalPages={handlePdfTotalPages}
                       />
                     ) : (
                       <div className="h-96 flex items-center justify-center text-muted-foreground text-sm">
@@ -1723,139 +1723,96 @@ function UploadDocumentForm() {
                       </div>
                     )}
 
-                    {/* Draggable & Resizable Custom Text Field */}
-                    {reqTextField && (
+                    {/* Draggable & Resizable Custom Text Fields */}
+                    {customTextFields.map((tf, idx) => (
                       <div
-                        onMouseDown={(e) => handleFieldMouseDown(e, "textField", textZone, setTextZone)}
-                        style={{
-                          position: "absolute",
-                          left: `${textZone.x * 100}%`,
-                          top: `${textZone.y * 100}%`,
-                          width: `${textZone.w * 100}%`,
-                          height: `${textZone.h * 100}%`,
-                          minHeight: "30px",
-                          cursor: activeDragField === "textField" ? "grabbing" : "grab",
-                        }}
-                        className="border-2 border-dashed border-purple-500 bg-purple-50/80 dark:bg-purple-950/30 rounded-md px-2 flex items-center justify-between text-xs text-purple-950 dark:text-purple-200 font-semibold shadow-md z-20 group select-none"
-                        title="Drag to position Text Field • Use corner/edges to resize"
-                      >
-                        <div className="flex items-center gap-1.5 truncate">
-                          <Type className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                          <span className="truncate">{textLabel || "Custom Text"}</span>
-                        </div>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
-
-                        {/* Resize handles */}
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "textField", textZone, setTextZone, "e")}
-                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-purple-500/30 rounded-full"
-                          title="Drag edge to change width"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "textField", textZone, setTextZone, "s")}
-                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-purple-500/30 rounded-full"
-                          title="Drag edge to change height"
-                        />
-                        <div
-                          onMouseDown={(e) => handleFieldResizeMouseDown(e, "textField", textZone, setTextZone, "se")}
-                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
-                          title="Drag corner to resize width & height"
-                        >
-                          <div className="w-1 h-1 bg-purple-600 rounded-full" />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Draggable & Resizable Extra Text Fields */}
-                    {extraTextFields.map((et, idx) => (
-                      <div
-                        key={et.id}
+                        key={tf.id}
                         onMouseDown={(e) =>
-                          handleFieldMouseDown(e, `extraText-${et.id}`, et.zone, (updater) => {
-                            setExtraTextFields((prev) =>
+                          handleFieldMouseDown(e, `customText-${tf.id}`, tf.zone, (updater) => {
+                            setCustomTextFields((prev) =>
                               prev.map((item) =>
-                                item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                                item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
                               )
                             )
                           })
                         }
                         style={{
                           position: "absolute",
-                          left: `${et.zone.x * 100}%`,
-                          top: `${et.zone.y * 100}%`,
-                          width: `${et.zone.w * 100}%`,
-                          height: `${et.zone.h * 100}%`,
+                          left: `${tf.zone.x * 100}%`,
+                          top: `${tf.zone.y * 100}%`,
+                          width: `${tf.zone.w * 100}%`,
+                          height: `${tf.zone.h * 100}%`,
                           minHeight: "30px",
-                          cursor: activeDragField === `extraText-${et.id}` ? "grabbing" : "grab",
+                          cursor: activeDragField === `customText-${tf.id}` ? "grabbing" : "grab",
                         }}
-                        className="border-2 border-dashed border-teal-500 bg-teal-50/80 dark:bg-teal-950/30 rounded-md px-2 flex items-center justify-between text-xs text-teal-950 dark:text-teal-200 font-semibold shadow-md z-20 group select-none"
+                        className="border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/60 rounded-md px-2 flex items-center justify-between text-xs text-purple-950 dark:text-purple-100 font-semibold shadow-md ring-1 ring-purple-400/40 z-20 group select-none"
                         title="Drag to position Text Field • Use corner/edges to resize"
                       >
                         <div className="flex items-center gap-1.5 truncate">
-                          <Type className="h-3.5 w-3.5 text-teal-600 shrink-0" />
-                          <span className="truncate">{et.label || `Text Field ${idx + 2}`}</span>
+                          <Type className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                          <span className="truncate">{tf.label || `Text Field ${idx + 1}`}</span>
                         </div>
-                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+                        <Move className="h-3.5 w-3.5 opacity-70 shrink-0 text-purple-800 dark:text-purple-300" />
 
                         {/* Resize handles */}
                         <div
                           onMouseDown={(e) =>
                             handleFieldResizeMouseDown(
                               e,
-                              `extraText-${et.id}`,
-                              et.zone,
+                              `customText-${tf.id}`,
+                              tf.zone,
                               (updater) => {
-                                setExtraTextFields((prev) =>
+                                setCustomTextFields((prev) =>
                                   prev.map((item) =>
-                                    item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                                    item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
                                   )
                                 )
                               },
                               "e"
                             )
                           }
-                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-teal-500/30 rounded-full"
+                          className="absolute top-1 bottom-1 -right-1 w-2 cursor-e-resize z-30 hover:bg-purple-500/30 rounded-full"
                           title="Drag edge to change width"
                         />
                         <div
                           onMouseDown={(e) =>
                             handleFieldResizeMouseDown(
                               e,
-                              `extraText-${et.id}`,
-                              et.zone,
+                              `customText-${tf.id}`,
+                              tf.zone,
                               (updater) => {
-                                setExtraTextFields((prev) =>
+                                setCustomTextFields((prev) =>
                                   prev.map((item) =>
-                                    item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                                    item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
                                   )
                                 )
                               },
                               "s"
                             )
                           }
-                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-teal-500/30 rounded-full"
+                          className="absolute -bottom-1 left-1 right-1 h-2 cursor-s-resize z-30 hover:bg-purple-500/30 rounded-full"
                           title="Drag edge to change height"
                         />
                         <div
                           onMouseDown={(e) =>
                             handleFieldResizeMouseDown(
                               e,
-                              `extraText-${et.id}`,
-                              et.zone,
+                              `customText-${tf.id}`,
+                              tf.zone,
                               (updater) => {
-                                setExtraTextFields((prev) =>
+                                setCustomTextFields((prev) =>
                                   prev.map((item) =>
-                                    item.id === et.id ? { ...item, zone: updater(item.zone) } : item
+                                    item.id === tf.id ? { ...item, zone: updater(item.zone) } : item
                                   )
                                 )
                               },
                               "se"
                             )
                           }
-                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-teal-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+                          className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-purple-600 rounded-xs shadow-xs cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
                           title="Drag corner to resize width & height"
                         >
-                          <div className="w-1 h-1 bg-teal-600 rounded-full" />
+                          <div className="w-1 h-1 bg-purple-600 rounded-full" />
                         </div>
                       </div>
                     ))}

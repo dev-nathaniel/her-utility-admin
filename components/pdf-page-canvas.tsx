@@ -53,7 +53,7 @@ async function getPdfJs(): Promise<any> {
   })
 }
 
-export function PdfPageCanvas({
+function PdfPageCanvasComponent({
   file,
   url,
   fallbackImageUrl,
@@ -78,8 +78,16 @@ export function PdfPageCanvas({
     height: 842,
   })
 
+  // Callback refs so parent re-renders never trigger load effects
+  const onLoadSuccessRef = useRef(onLoadSuccess)
+  onLoadSuccessRef.current = onLoadSuccess
+
+  const onTotalPagesRef = useRef(onTotalPages)
+  onTotalPagesRef.current = onTotalPages
+
   // Track render task to cancel ongoing renders if pageNumber changes rapidly
   const renderTaskRef = useRef<any>(null)
+  const currentDocKeyRef = useRef<string | null>(null)
 
   // 1. Detect if the file or URL is an image (PNG, JPG, JPEG, WEBP)
   useEffect(() => {
@@ -98,8 +106,8 @@ export function PdfPageCanvas({
             const aspect = img.naturalHeight / (img.naturalWidth || 1)
             const h = Math.round(595 * aspect)
             setPageSize({ width: 595, height: h })
-            onLoadSuccess?.({ numPages: 1, width: 595, height: h })
-            onTotalPages?.(1)
+            onLoadSuccessRef.current?.({ numPages: 1, width: 595, height: h })
+            onTotalPagesRef.current?.(1)
           }
         }
         return () => {
@@ -124,8 +132,8 @@ export function PdfPageCanvas({
           const aspect = img.naturalHeight / (img.naturalWidth || 1)
           const h = Math.round(595 * aspect)
           setPageSize({ width: 595, height: h })
-          onLoadSuccess?.({ numPages: 1, width: 595, height: h })
-          onTotalPages?.(1)
+          onLoadSuccessRef.current?.({ numPages: 1, width: 595, height: h })
+          onTotalPagesRef.current?.(1)
         }
       }
       return
@@ -133,7 +141,7 @@ export function PdfPageCanvas({
 
     setIsImageFile(false)
     setImageObjectUrl(null)
-  }, [file, url, contentType, onLoadSuccess, onTotalPages])
+  }, [file, url, contentType])
 
   // 2. Load PDF Document from File or URL
   useEffect(() => {
@@ -145,13 +153,26 @@ export function PdfPageCanvas({
     if (isImg || isImageFile) return
     let isCancelled = false
 
-    async function loadPdf() {
-      if (!file && !url) {
-        setPdfDoc(null)
-        setLoading(false)
-        return
-      }
+    const docKey = file ? `${file.name}-${file.size}-${file.lastModified}` : url || null
+    if (!docKey) {
+      setPdfDoc(null)
+      setLoading(false)
+      currentDocKeyRef.current = null
+      return
+    }
 
+    // Prevent duplicate document loads if document hasn't changed
+    if (docKey === currentDocKeyRef.current && pdfDoc) {
+      onLoadSuccessRef.current?.({
+        numPages: pdfDoc.numPages,
+        width: pageSize.width,
+        height: pageSize.height,
+      })
+      onTotalPagesRef.current?.(pdfDoc.numPages)
+      return
+    }
+
+    async function loadPdf() {
       setLoading(true)
       setError(null)
 
@@ -167,7 +188,7 @@ export function PdfPageCanvas({
         } else if (url) {
           let arrayBuffer: ArrayBuffer | null = null
 
-          // Tier 1: Direct fetch (CORS now configured on Cloudflare R2)
+          // Tier 1: Direct fetch (CORS configured on Cloudflare R2)
           try {
             const directRes = await fetch(url)
             if (directRes.ok) {
@@ -197,20 +218,35 @@ export function PdfPageCanvas({
           }
         }
 
-        if (!docSource) return
+        if (!docSource || isCancelled) return
 
         const loadingTask = pdfjs.getDocument(docSource)
         const doc = await loadingTask.promise
 
-        if (isCancelled) return
+        if (isCancelled) {
+          try {
+            doc.destroy?.()
+          } catch {}
+          return
+        }
 
-        setPdfDoc(doc)
-        onLoadSuccess?.({
+        // Clean up previous doc to free memory
+        setPdfDoc((prevDoc: any) => {
+          if (prevDoc && typeof prevDoc.destroy === "function" && prevDoc !== doc) {
+            try {
+              prevDoc.destroy()
+            } catch {}
+          }
+          return doc
+        })
+        currentDocKeyRef.current = docKey
+
+        onLoadSuccessRef.current?.({
           numPages: doc.numPages,
           width: pageSize.width,
           height: pageSize.height,
         })
-        onTotalPages?.(doc.numPages)
+        onTotalPagesRef.current?.(doc.numPages)
       } catch (err: any) {
         console.error("PDF load error:", err)
         if (!isCancelled) {
@@ -225,7 +261,7 @@ export function PdfPageCanvas({
     return () => {
       isCancelled = true
     }
-  }, [file, url, isImageFile, onLoadSuccess, onTotalPages])
+  }, [file, url, isImageFile])
 
   // 3. Render the specific page onto the Canvas
   useEffect(() => {
@@ -241,7 +277,7 @@ export function PdfPageCanvas({
         try {
           renderTaskRef.current.cancel()
         } catch {
-          // ignore cancel error
+          // ignore
         }
         renderTaskRef.current = null
       }
@@ -304,9 +340,7 @@ export function PdfPageCanvas({
       if (renderTaskRef.current) {
         try {
           renderTaskRef.current.cancel()
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
     }
   }, [pdfDoc, pageNumber, isImageFile])
@@ -406,3 +440,14 @@ export function PdfPageCanvas({
     </div>
   )
 }
+
+export const PdfPageCanvas = React.memo(
+  PdfPageCanvasComponent,
+  (prev, next) =>
+    prev.file === next.file &&
+    prev.url === next.url &&
+    prev.pageNumber === next.pageNumber &&
+    prev.scale === next.scale &&
+    prev.fallbackImageUrl === next.fallbackImageUrl &&
+    prev.className === next.className
+)
