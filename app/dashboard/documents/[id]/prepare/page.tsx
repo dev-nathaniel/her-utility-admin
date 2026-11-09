@@ -512,11 +512,11 @@ export default function PrepareDocumentPage() {
         let newH = prev.h
 
         if (direction === "se" || direction === "e") {
-          newW = Math.max(0.08, Math.min(0.99 - initX, initW + deltaX))
+          newW = Math.max(0.015, Math.min(0.99 - initX, initW + deltaX))
         }
 
         if (direction === "se" || direction === "s") {
-          newH = Math.max(0.025, Math.min(0.99 - initY, initH + deltaY))
+          newH = Math.max(0.006, Math.min(0.99 - initY, initH + deltaY))
         }
 
         return {
@@ -564,22 +564,22 @@ export default function PrepareDocumentPage() {
               top: `${zone.y * 100}%`,
               width: `${zone.w * 100}%`,
               height: `${zone.h * 100}%`,
-              minHeight: "42px",
+              minHeight: "20px",
               cursor: activeDragField === "signature" ? "grabbing" : "grab",
             }}
-            className="border-2 border-amber-600 bg-[#fff9db] dark:bg-[#382b00] rounded-md p-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-bold shadow-xl ring-2 ring-amber-400/50 hover:bg-[#fff4be] transition-colors group select-none z-30"
+            className="border-2 border-amber-600 bg-[#fff9db] dark:bg-[#382b00] rounded-xs p-1 px-1.5 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-bold shadow-xl ring-2 ring-amber-400/50 hover:bg-[#fff4be] transition-colors group select-none z-30"
             title="Drag to position Signature • Use corner/edges to resize"
           >
-            <div className="flex items-center gap-2 truncate">
-              <div className="bg-[#ffcc00] text-amber-950 font-black text-[10px] px-2 py-0.5 rounded shadow-xs uppercase tracking-wider flex items-center gap-1 shrink-0 border border-amber-600/40">
-                <PenTool className="h-3 w-3 text-amber-950 stroke-[2.5]" />
-                <span>SIGN HERE</span>
+            <div className="flex items-center gap-1.5 truncate min-w-0">
+              <div className="bg-[#ffcc00] text-amber-950 font-black text-[9px] px-1.5 py-0.5 rounded shadow-xs uppercase tracking-wider flex items-center gap-1 shrink-0 border border-amber-600/40">
+                <PenTool className="h-2.5 w-2.5 text-amber-950 stroke-[2.5]" />
+                <span>SIGN</span>
               </div>
-              <span className="truncate text-xs font-bold text-amber-950 dark:text-amber-100">
+              <span className="truncate text-[11px] font-bold text-amber-950 dark:text-amber-100">
                 {recipientName || "Customer"}
               </span>
             </div>
-            <Move className="h-4 w-4 shrink-0 text-amber-800 dark:text-amber-300 opacity-80" />
+            <Move className="h-3 w-3 shrink-0 text-amber-800 dark:text-amber-300 opacity-80 ml-1" />
 
             {/* Resize handles */}
             <div
@@ -594,7 +594,7 @@ export default function PrepareDocumentPage() {
             />
             <div
               onMouseDown={(e) => handleFieldResizeMouseDown(e, "signature", zone, setZone, pageNum, "se")}
-              className="absolute -bottom-1.5 -right-1.5 w-4 h-4 bg-amber-500 border-2 border-white dark:border-amber-950 rounded-xs shadow-md cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
+              className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-amber-500 border-2 border-white dark:border-amber-950 rounded-xs shadow-md cursor-se-resize flex items-center justify-center hover:scale-125 transition-transform z-40"
               title="Drag corner to resize width & height"
             >
               <div className="w-1.5 h-1.5 bg-white dark:bg-amber-950 rounded-full" />
@@ -613,14 +613,14 @@ export default function PrepareDocumentPage() {
               top: `${fullNameZone.y * 100}%`,
               width: `${fullNameZone.w * 100}%`,
               height: `${fullNameZone.h * 100}%`,
-              minHeight: "30px",
+              minHeight: "14px",
               cursor: activeDragField === "fullName" ? "grabbing" : "grab",
             }}
-            className="border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/60 rounded-md px-2 flex items-center justify-between text-xs text-blue-950 dark:text-blue-100 font-semibold shadow-md ring-1 ring-blue-400/40 z-20 group select-none"
+            className="border-2 border-blue-500 bg-blue-50 dark:bg-blue-950/60 rounded-xs px-1.5 flex items-center justify-between text-[11px] text-blue-950 dark:text-blue-100 font-semibold shadow-xs ring-1 ring-blue-400/40 z-20 group select-none"
             title="Drag to position Full Name • Use corner/edges to resize"
           >
-            <span className="truncate">Full Name: {recipientName || "Name"}</span>
-            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+            <span className="truncate min-w-0">Full Name: {recipientName || "Name"}</span>
+            <Move className="h-3 w-3 opacity-70 shrink-0 ml-1" />
 
             <div
               onMouseDown={(e) => handleFieldResizeMouseDown(e, "fullName", fullNameZone, setFullNameZone, pageNum, "e")}
@@ -650,14 +650,14 @@ export default function PrepareDocumentPage() {
               top: `${jobTitleZone.y * 100}%`,
               width: `${jobTitleZone.w * 100}%`,
               height: `${jobTitleZone.h * 100}%`,
-              minHeight: "30px",
+              minHeight: "14px",
               cursor: activeDragField === "jobTitle" ? "grabbing" : "grab",
             }}
-            className="border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 rounded-md px-2 flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-100 font-semibold shadow-md ring-1 ring-indigo-400/40 z-20 group select-none"
+            className="border-2 border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 rounded-xs px-1.5 flex items-center justify-between text-[11px] text-indigo-950 dark:text-indigo-100 font-semibold shadow-xs ring-1 ring-indigo-400/40 z-20 group select-none"
             title="Drag to position Job Title • Use corner/edges to resize"
           >
-            <span className="truncate">Job Title: Director</span>
-            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+            <span className="truncate min-w-0">Job Title: Director</span>
+            <Move className="h-3 w-3 opacity-70 shrink-0 ml-1" />
 
             <div
               onMouseDown={(e) => handleFieldResizeMouseDown(e, "jobTitle", jobTitleZone, setJobTitleZone, pageNum, "e")}
@@ -687,14 +687,14 @@ export default function PrepareDocumentPage() {
               top: `${emailZone.y * 100}%`,
               width: `${emailZone.w * 100}%`,
               height: `${emailZone.h * 100}%`,
-              minHeight: "30px",
+              minHeight: "14px",
               cursor: activeDragField === "email" ? "grabbing" : "grab",
             }}
-            className="border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 rounded-md px-2 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-100 font-semibold shadow-md ring-1 ring-emerald-400/40 z-20 group select-none"
+            className="border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 rounded-xs px-1.5 flex items-center justify-between text-[11px] text-emerald-950 dark:text-emerald-100 font-semibold shadow-xs ring-1 ring-emerald-400/40 z-20 group select-none"
             title="Drag to position Email • Use corner/edges to resize"
           >
-            <span className="truncate">Email: {recipientEmail || "email@company.com"}</span>
-            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+            <span className="truncate min-w-0">Email: {recipientEmail || "email@company.com"}</span>
+            <Move className="h-3 w-3 opacity-70 shrink-0 ml-1" />
 
             <div
               onMouseDown={(e) => handleFieldResizeMouseDown(e, "email", emailZone, setEmailZone, pageNum, "e")}
@@ -724,14 +724,14 @@ export default function PrepareDocumentPage() {
               top: `${dateZone.y * 100}%`,
               width: `${dateZone.w * 100}%`,
               height: `${dateZone.h * 100}%`,
-              minHeight: "30px",
+              minHeight: "14px",
               cursor: activeDragField === "date" ? "grabbing" : "grab",
             }}
-            className="border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/60 rounded-md px-2 flex items-center justify-between text-xs text-amber-950 dark:text-amber-100 font-semibold shadow-md ring-1 ring-amber-400/40 z-20 group select-none"
+            className="border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/60 rounded-xs px-1.5 flex items-center justify-between text-[11px] text-amber-950 dark:text-amber-100 font-semibold shadow-xs ring-1 ring-amber-400/40 z-20 group select-none"
             title="Drag to position Date • Use corner/edges to resize"
           >
-            <span className="truncate">Date Signed</span>
-            <Move className="h-3.5 w-3.5 opacity-70 shrink-0" />
+            <span className="truncate min-w-0">Date Signed</span>
+            <Move className="h-3 w-3 opacity-70 shrink-0 ml-1" />
 
             <div
               onMouseDown={(e) => handleFieldResizeMouseDown(e, "date", dateZone, setDateZone, pageNum, "e")}
@@ -778,7 +778,7 @@ export default function PrepareDocumentPage() {
                 top: `${tf.zone.y * 100}%`,
                 width: `${tf.zone.w * 100}%`,
                 height: `${tf.zone.h * 100}%`,
-                minHeight: "24px",
+                minHeight: "12px",
                 cursor: activeDragField === `customText-${tf.id}` ? "grabbing" : "grab",
               }}
               className="border-2 border-purple-500 bg-purple-50/70 dark:bg-purple-950/60 rounded-xs pl-0.5 pr-1 flex items-center justify-between text-xs text-purple-950 dark:text-purple-100 font-semibold shadow-xs ring-1 ring-purple-400/40 z-20 group select-none"
@@ -804,10 +804,10 @@ export default function PrepareDocumentPage() {
                 placeholder={`Text Field ${idx + 1}`}
                 title="Click to edit field text directly"
                 style={{ fontSize: `${tf.fontSize || 11}px` }}
-                className="w-full h-full bg-transparent border-0 p-0 font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text leading-none"
+                className="w-full h-full min-w-0 bg-transparent border-0 p-0 font-semibold text-purple-950 dark:text-purple-100 placeholder:text-purple-400/70 focus:outline-hidden focus:ring-0 select-text cursor-text leading-none"
               />
 
-              <Move className="h-3 w-3 opacity-40 group-hover:opacity-80 shrink-0 text-purple-800 dark:text-purple-300 ml-1 cursor-grab" />
+              <Move className="h-2.5 w-2.5 opacity-40 group-hover:opacity-80 shrink-0 text-purple-800 dark:text-purple-300 ml-0.5 cursor-grab" />
 
               <div
                 onMouseDown={(e) =>
@@ -1443,7 +1443,7 @@ export default function PrepareDocumentPage() {
                         id: newId,
                         label: `Text Field ${prev.length + 1}`,
                         page: currentVisiblePage || 1,
-                        zone: { x: 0.3, y: 0.5, w: 0.35, h: 0.045 },
+                        zone: { x: 0.3, y: 0.5, w: 0.20, h: 0.025 },
                         fontSize: 11,
                       },
                     ])
@@ -1510,7 +1510,7 @@ export default function PrepareDocumentPage() {
                               setCustomTextFields((prev) =>
                                 prev.map((item) =>
                                   item.id === tf.id
-                                    ? { ...item, fontSize: Math.max(6, (item.fontSize || 11) - 1) }
+                                    ? { ...item, fontSize: Math.max(4, (item.fontSize || 11) - 1) }
                                     : item
                                 )
                               )
@@ -1533,7 +1533,7 @@ export default function PrepareDocumentPage() {
                               <SelectValue placeholder={`${tf.fontSize || 11} pt`} />
                             </SelectTrigger>
                             <SelectContent>
-                              {[8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32].map((s) => (
+                              {[4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32].map((s) => (
                                 <SelectItem key={s} value={String(s)} className="text-xs">
                                   {s} pt
                                 </SelectItem>

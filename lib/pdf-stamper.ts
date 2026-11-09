@@ -57,7 +57,7 @@ export async function stampTextFieldsOnPdf(
     // Use custom font size if specified, otherwise scale to box height
     const fontSize = tf.fontSize && tf.fontSize > 0
       ? tf.fontSize
-      : Math.min(12, Math.max(8.5, boxH * 0.45))
+      : Math.min(12, Math.max(4, boxH * 0.6))
 
     // Position text cleanly inside the box
     const textX = boxX + 4
