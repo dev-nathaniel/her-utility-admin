@@ -158,6 +158,37 @@ export function QuoteTrackerDetailsDialog({
               </div>
             </div>
 
+            {/* Site & Contract Details if present */}
+            {(quote.supply_address || quote.postcode || quote.contract_end_date || quote.meter_point_number) && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {(quote.supply_address || quote.postcode) && (
+                  <div className="p-3 rounded-lg border bg-muted/20">
+                    <span className="text-muted-foreground block text-[11px]">Supply Address &amp; Postcode</span>
+                    <span className="font-semibold text-foreground block mt-0.5">{quote.supply_address || "—"}</span>
+                    {quote.postcode && <span className="font-mono text-muted-foreground block text-[11px] mt-0.5">{quote.postcode}</span>}
+                  </div>
+                )}
+                {(quote.contract_end_date || quote.meter_point_number) && (
+                  <div className="p-3 rounded-lg border bg-muted/20">
+                    {quote.contract_end_date && (
+                      <div className="mb-1.5">
+                        <span className="text-muted-foreground block text-[11px]">Contract End Date</span>
+                        <span className="font-semibold text-foreground block font-mono mt-0.5">
+                          {new Date(quote.contract_end_date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                        </span>
+                      </div>
+                    )}
+                    {quote.meter_point_number && (
+                      <div>
+                        <span className="text-muted-foreground block text-[11px]">{quote.utility_type === "gas" ? "MPRN" : "MPAN"}</span>
+                        <span className="font-mono font-semibold text-foreground mt-0.5 block">{quote.meter_point_number}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Linked Documents (Quote PDF & LOA) */}
             <div className="space-y-2">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Linked Documents</h4>

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Search, Clock, CheckCircle2, Eye, FileText, Zap, PhoneCall, Inbox } from "lucide-react"
+import { Search, Clock, CheckCircle2, Eye, FileText, Zap, PhoneCall, Inbox, User } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { QuoteDetailsDialog } from "./quote-details-dialog"
 import { QuoteTrackerView } from "./quote-tracker-view"
@@ -40,10 +40,15 @@ export function QuotesPage() {
   const filteredQuotes = quotes.filter((q: any) => {
     const query = searchQuery.toLowerCase()
     const matchesQuery =
-      (q.company_name || q.customer || "").toLowerCase().includes(query) ||
+      (q.customer_name || "").toLowerCase().includes(query) ||
+      (q.customer || "").toLowerCase().includes(query) ||
+      (q.company_name || q.business_name || "").toLowerCase().includes(query) ||
       (q.utility_type || "").toLowerCase().includes(query) ||
+      (q.supply_address || q.property_address || "").toLowerCase().includes(query) ||
+      (q.postcode || "").toLowerCase().includes(query) ||
+      (q.mprn || q.meter_point_number || "").toLowerCase().includes(query) ||
       (q.notes || "").toLowerCase().includes(query) ||
-      (q.user_email || "").toLowerCase().includes(query)
+      (q.user_email || q.contact_email || "").toLowerCase().includes(query)
 
     const matchesStatus =
       statusFilter === "all"
@@ -73,17 +78,24 @@ export function QuotesPage() {
 
   const columns: DataTableColumn<any>[] = [
     {
-      key: "company_name",
-      label: "Customer / Account",
+      key: "customer_name",
+      label: "Customer & Business",
       sortable: true,
       render: (q) => (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
           <div className="p-2 rounded-lg bg-primary/10 text-primary">
-            <FileText className="h-4 w-4" />
+            <User className="h-4 w-4" />
           </div>
           <div>
-            <p className="font-semibold text-sm leading-snug">{q.company_name || q.customer || "Client"}</p>
-            <p className="text-xs text-muted-foreground">{q.user_email || ""}</p>
+            <p className="font-semibold text-sm leading-snug">
+              {q.customer_name || q.contact_name || q.customer || "Customer"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {q.business_name || q.company_name ? (
+                <span className="font-medium text-foreground/80">{q.business_name || q.company_name} &bull; </span>
+              ) : null}
+              {q.user_email || q.contact_email || ""}
+            </p>
           </div>
         </div>
       ),
@@ -93,21 +105,73 @@ export function QuotesPage() {
       label: "Utility",
       sortable: true,
       render: (q) => (
-        <div className="flex items-center gap-1.5 capitalize text-sm font-medium">
-          <Zap className="h-4 w-4 text-muted-foreground" />
+        <div className="flex items-center gap-1.5 capitalize text-xs font-medium">
+          <Zap className="h-3.5 w-3.5 text-primary" />
           <span>{q.utility_type}</span>
         </div>
       ),
     },
     {
-      key: "current_spend",
-      label: "Current Spend",
+      key: "supply_address",
+      label: "Supply Address & Postcode",
       sortable: true,
       render: (q) => (
-        <span className="text-sm font-semibold">
-          {q.current_spend ? `£${q.current_spend}` : "—"}
-        </span>
+        <div className="text-xs max-w-[200px]">
+          <p className="font-medium truncate text-foreground" title={q.supply_address || q.property_address || ""}>
+            {q.supply_address || q.property_address || "—"}
+          </p>
+          <p className="text-muted-foreground font-mono text-[11px]">
+            {q.postcode || q.supply_postcode || ""}
+          </p>
+        </div>
       ),
+    },
+    {
+      key: "end_date",
+      label: "Contract End",
+      sortable: true,
+      render: (q) => {
+        const endDate = q.end_date || q.contract_end_date
+        const window = q.contract_end_window
+        if (endDate) {
+          const d = new Date(endDate)
+          const formatted = Number.isNaN(d.getTime())
+            ? endDate
+            : d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+          return (
+            <div>
+              <span className="text-xs font-semibold text-foreground block">{formatted}</span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium font-mono">Exact Date</span>
+            </div>
+          )
+        }
+        if (window) {
+          const labels: Record<string, string> = {
+            out_of_contract: "Out of contract",
+            under_6m: "< 6 months",
+            "6_12m": "6–12 months",
+            over_12m: "> 12 months",
+            dont_know: "Don't know",
+            know_date: "Know date",
+          }
+          return <span className="text-xs text-muted-foreground">{labels[window] || window}</span>
+        }
+        return <span className="text-xs text-muted-foreground">—</span>
+      },
+    },
+    {
+      key: "mprn",
+      label: "MPRN / MPAN",
+      sortable: true,
+      render: (q) => {
+        const mpx = q.mprn || q.meter_point_number
+        if (!mpx) return <span className="text-xs text-muted-foreground">—</span>
+        return (
+          <span className="font-mono text-xs font-medium bg-muted/60 px-2 py-0.5 rounded text-foreground">
+            {mpx}
+          </span>
+        )
+      },
     },
     {
       key: "status",
@@ -132,7 +196,7 @@ export function QuotesPage() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1.5 h-8 text-xs font-medium"
+          className="gap-1.5 h-8 text-xs font-medium bg-primary/5 hover:bg-primary/10 border-primary/20 text-primary"
           onClick={() => setSelectedQuote(q)}
         >
           <Eye className="h-3.5 w-3.5" />

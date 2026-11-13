@@ -128,17 +128,56 @@ export interface QuoteData {
   _id?: string
   user_id?: string
   company_name?: string
+  business_name?: string
+  customer_name?: string
+  customer?: string
+  contact_name?: string
+  contact_email?: string
+  contact_phone?: string
   property_address?: string
+  supply_address?: string
+  postcode?: string
+  supply_postcode?: string
   contract_id?: string
   utility_type: string
+  selected_services?: string[]
   current_spend?: number | string
   status: "pending" | "quoted" | "accepted" | "rejected" | string
   notes?: string
   requirements?: string
   created_at: string
   createdAt?: string
+  submittedDate?: string
   user_email?: string
   user_full_name?: string
+  end_date?: string
+  contract_end_date?: string
+  contract_end_window?: string
+  mprn?: string
+  meter_point_number?: string
+  energy_meters?: Array<{
+    utility: string
+    supplier?: string
+    contract_end_window?: string
+    end_date?: string
+    meter_point_number?: string
+    days_until_expiry?: number
+  }>
+  water_supplier?: string
+  telecoms_supplier?: string
+  contact?: {
+    name?: string
+    email?: string
+    phone?: string
+  }
+  address?: {
+    business_name?: string
+    full_address?: string
+    postcode?: string
+    supply_postcode?: string
+    is_supply_address?: boolean
+    property_id?: string
+  }
 }
 
 export interface DocumentData {
@@ -219,6 +258,11 @@ export interface QuoteTrackerData {
   linked_quote_doc_id?: string
   linked_loa_doc_id?: string
   linked_contract_id?: string
+  supply_address?: string
+  postcode?: string
+  contract_end_date?: string
+  meter_point_number?: string
+  inbound_quote_id?: string
   adviser_notes?: string
   created_at: string
   updated_at?: string
@@ -630,12 +674,49 @@ export const apiClient = {
   // Quote Enquiries
   getQuotes: async (params?: { search?: string; status?: string }): Promise<QuoteData[]> => {
     const response = await axiosInstance.get("/admin/quotes")
-    return (response.data || []).map((q: any) => ({
-      ...q,
-      _id: q.id,
-      customer: q.company_name || q.user_email || "Customer",
-      submittedDate: q.created_at || new Date().toISOString(),
-    }))
+    return (response.data || []).map((q: any) => {
+      const contact = q.contact || {}
+      const address = q.address || {}
+      const meters = q.energy_meters || []
+      const primaryMeter = meters[0] || {}
+
+      const customerName = q.customer_name || contact.name || q.user_full_name || ""
+      const businessName = q.business_name || q.company_name || address.business_name || ""
+      const customerEmail = q.user_email || contact.email || ""
+      const displayName = customerName || businessName || customerEmail || "Customer"
+
+      const supplyAddress = q.supply_address || q.property_address || address.full_address || ""
+      const postcode = q.postcode || address.postcode || ""
+      const supplyPostcode = q.supply_postcode || address.supply_postcode || postcode
+
+      const gasMeter = meters.find((m: any) => m.utility === "gas")
+      const elecMeter = meters.find((m: any) => m.utility === "electric")
+      const mprn = q.mprn || gasMeter?.meter_point_number || elecMeter?.meter_point_number || primaryMeter.meter_point_number || ""
+      const endDate = q.end_date || q.contract_end_date || primaryMeter.end_date || ""
+      const endWindow = q.contract_end_window || primaryMeter.contract_end_window || ""
+
+      return {
+        ...q,
+        _id: q.id,
+        customer_name: customerName,
+        customer: displayName,
+        company_name: businessName,
+        business_name: businessName,
+        user_email: customerEmail,
+        contact_name: customerName,
+        contact_email: customerEmail,
+        supply_address: supplyAddress,
+        property_address: supplyAddress,
+        postcode: postcode,
+        supply_postcode: supplyPostcode,
+        end_date: endDate,
+        contract_end_date: endDate,
+        contract_end_window: endWindow,
+        mprn: mprn,
+        meter_point_number: mprn,
+        submittedDate: q.created_at || new Date().toISOString(),
+      }
+    })
   },
 
   updateQuoteStatus: async (quoteId: string, status: string, notes?: string): Promise<any> => {
