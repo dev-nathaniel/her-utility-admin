@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiClient, type UserData } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -143,8 +142,8 @@ export function AddBusinessDialog({ open, onOpenChange }: AddBusinessDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col gap-0 overflow-hidden">
+        <DialogHeader className="p-6 pb-2 shrink-0">
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Building2 className="h-5 w-5 text-primary" />
             <span>Add Business &amp; Site for Customer</span>
@@ -154,7 +153,7 @@ export function AddBusinessDialog({ open, onOpenChange }: AddBusinessDialogProps
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-2">
+        <div className="px-6 py-2 shrink-0">
           <Tabs
             value={mode}
             onValueChange={(val) => setMode(val as any)}
@@ -173,8 +172,8 @@ export function AddBusinessDialog({ open, onOpenChange }: AddBusinessDialogProps
           </Tabs>
         </div>
 
-        <ScrollArea className="flex-1 pr-3 -mr-1">
-          <form id="add-business-form" onSubmit={handleSubmit} className="space-y-5 pb-2">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-2">
+          <form id="add-business-form" onSubmit={handleSubmit} className="space-y-5 pb-6">
             {/* Customer Details */}
             <div className="rounded-lg border p-3.5 space-y-3 bg-muted/20">
               <div className="flex items-center gap-2">
@@ -336,9 +335,9 @@ export function AddBusinessDialog({ open, onOpenChange }: AddBusinessDialogProps
               </div>
             </div>
           </form>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="pt-3 border-t">
+        <DialogFooter className="p-6 pt-3 border-t bg-background shrink-0 mt-auto">
           <Button
             type="button"
             variant="outline"
