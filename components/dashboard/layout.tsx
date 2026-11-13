@@ -60,13 +60,14 @@ const navigation: navigationType[] = [
   { name: "Companies", href: "/dashboard/businesses", icon: Building2 },
   { name: "Users", href: "/dashboard/users", icon: Users },
   { name: "Quotes & Tracker", href: "/dashboard/quotes", icon: FileText },
-  { name: "Document Centre", href: "/dashboard/documents", icon: FolderArchive },
+  // { name: "Document Centre", href: "/dashboard/documents", icon: FolderArchive },
   { name: "Utility Contracts", href: "/dashboard/contracts", icon: Zap },
   { name: "Bill Scans", href: "/dashboard/scans", icon: FileCheck },
   { name: "Support (Concierge)", href: "/dashboard/support", icon: MessagesSquare },
   { name: "Alerts & Activity", href: "/dashboard/activity-log", icon: Activity },
 
   // ── Pages commented out per backend & mobile app architecture (unsupported / not needed) ──
+  // { name: "Document Centre", href: "/dashboard/documents", icon: FolderArchive },
   // { name: "Email Management", href: "/dashboard/emails", icon: Mail },
   // { name: "Content Management", href: "/dashboard/content", icon: Newspaper },
   // { name: "Admins", href: "/dashboard/admins", icon: UserCog },

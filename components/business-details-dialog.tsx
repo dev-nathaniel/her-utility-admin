@@ -198,13 +198,15 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
             <div className="py-12 text-center text-sm text-muted-foreground">Loading company records...</div>
           ) : (
             <Tabs defaultValue="sites" className="mt-4">
-              <TabsList className="grid w-full grid-cols-5">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="sites">Sites ({properties.length})</TabsTrigger>
                 <TabsTrigger value="contracts">Contracts ({contracts.length})</TabsTrigger>
+                {/* Document Centre commented out
                 <TabsTrigger value="documents" className="flex items-center gap-1.5">
                   <FileText className="h-3.5 w-3.5" />
                   <span>Documents ({documents.length})</span>
                 </TabsTrigger>
+                */}
                 <TabsTrigger value="notes">Notes &amp; Activity</TabsTrigger>
                 <TabsTrigger value="details">Company Info</TabsTrigger>
               </TabsList>
@@ -281,7 +283,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                 )}
               </TabsContent>
 
-              {/* Tab: Documents (Document Centre) */}
+              {/* Tab: Documents (Document Centre) commented out
               <TabsContent value="documents" className="space-y-4 mt-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -427,6 +429,7 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                   </div>
                 )}
               </TabsContent>
+              */}
 
               {/* Tab: Notes */}
               <TabsContent value="notes" className="space-y-4 mt-4">
