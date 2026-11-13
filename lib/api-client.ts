@@ -98,6 +98,7 @@ export interface ScanData {
   user_email?: string
   user_full_name?: string
   call_requested_at?: string | null
+  file_url?: string
   extracted_data?: {
     supplier?: string
     utility_type?: string
@@ -685,6 +686,7 @@ export const apiClient = {
         ...s,
         _id: s.id,
         filename: s.original_filename || s.filename,
+        file_url: s.file_url,
         customer_company: s.user_company || (s.extracted && s.extracted.legal_entity_name) || s.customer_company,
         customer_name: s.user_full_name || s.customer_name,
         customer_email: s.user_email || s.customer_email,
@@ -694,10 +696,14 @@ export const apiClient = {
           account_number: ex.account_number,
           meter_number: ex.meter_serial_number || ex.meter_number,
           mpan_mprn: ex.mpan_or_mprn || ex.mpan || ex.mprn,
+          contract_start_date: ex.contract_start_date,
           contract_end_date: ex.contract_end_date,
+          annual_usage_kwh: ex.annual_usage_kwh || ex.annual_usage,
           standing_charge: ex.standing_charge_p_per_day || ex.standing_charge,
           unit_rate: ex.unit_rate_p_per_kwh || ex.unit_rate,
-          total_amount: ex.annual_usage_kwh ? `${ex.annual_usage_kwh.toLocaleString()} kWh/yr` : undefined,
+          supply_address: ex.supply_address,
+          postcode: ex.postcode,
+          total_amount: ex.annual_usage_kwh ? `${Number(ex.annual_usage_kwh).toLocaleString()} kWh/yr` : undefined,
           ...ex,
         },
       }

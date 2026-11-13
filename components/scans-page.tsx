@@ -31,7 +31,7 @@ export function ScansPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState("pending")
   const [selectedScan, setSelectedScan] = useState<ScanData | null>(null)
-  const [selectedContractId, setSelectedContractId] = useState("")
+  const [selectedContractId, setSelectedContractId] = useState("auto")
 
   const { data: scans = [], isLoading } = useQuery({
     queryKey: ["admin-scans"],
@@ -46,7 +46,10 @@ export function ScansPage() {
 
   const applyScanMutation = useMutation({
     mutationFn: (scanId: string) =>
-      apiClient.applyScanToContract(scanId, selectedContractId ? { contract_id: selectedContractId } : {}),
+      apiClient.applyScanToContract(
+        scanId,
+        selectedContractId && selectedContractId !== "auto" ? { contract_id: selectedContractId } : {}
+      ),
     onSuccess: (data) => {
       toast.success(data?.message || "Bill scan applied to contract successfully!")
       setSelectedScan(null)
@@ -191,7 +194,7 @@ export function ScansPage() {
           className="gap-1.5 h-8 text-xs font-medium"
           onClick={() => {
             setSelectedScan(s)
-            setSelectedContractId("")
+            setSelectedContractId("auto")
           }}
         >
           <Eye className="h-3.5 w-3.5" />
@@ -330,16 +333,31 @@ export function ScansPage() {
                     <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       GPT-4o Vision Extracted Data
                     </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => sanityCheckMutation.mutate(selectedScan.id || selectedScan._id || "")}
-                      disabled={sanityCheckMutation.isPending}
-                      className="h-7 text-xs gap-1.5"
-                    >
-                      <RefreshCw className={`h-3 w-3 ${sanityCheckMutation.isPending ? "animate-spin" : ""}`} />
-                      <span>Rerun Sanity Check</span>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {selectedScan.file_url && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          asChild
+                          className="h-7 text-xs gap-1.5"
+                        >
+                          <a href={selectedScan.file_url} target="_blank" rel="noopener noreferrer">
+                            <Eye className="h-3 w-3" />
+                            <span>View Original Bill</span>
+                          </a>
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => sanityCheckMutation.mutate(selectedScan.id || selectedScan._id || "")}
+                        disabled={sanityCheckMutation.isPending}
+                        className="h-7 text-xs gap-1.5"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${sanityCheckMutation.isPending ? "animate-spin" : ""}`} />
+                        <span>Rerun Sanity Check</span>
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="px-4 pb-4">
@@ -357,6 +375,14 @@ export function ScansPage() {
                         <span className="text-xs text-muted-foreground block">Meter / MPAN / MPRN</span>
                         <span className="font-semibold font-mono">
                           {selectedScan.extracted_data.meter_number || selectedScan.extracted_data.mpan_mprn || "—"}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-lg border bg-muted/20">
+                        <span className="text-xs text-muted-foreground block">Annual Usage</span>
+                        <span className="font-semibold text-primary">
+                          {selectedScan.extracted_data.annual_usage_kwh
+                            ? `${Number(selectedScan.extracted_data.annual_usage_kwh).toLocaleString()} kWh/yr`
+                            : selectedScan.extracted_data.total_amount || "—"}
                         </span>
                       </div>
                       <div className="p-2.5 rounded-lg border bg-muted/20">
@@ -379,6 +405,27 @@ export function ScansPage() {
                           {selectedScan.extracted_data.standing_charge ? `${selectedScan.extracted_data.standing_charge} p/day` : "—"}
                         </span>
                       </div>
+                      <div className="p-2.5 rounded-lg border bg-muted/20">
+                        <span className="text-xs text-muted-foreground block">Account Number</span>
+                        <span className="font-semibold font-mono">
+                          {selectedScan.extracted_data.account_number || "—"}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-lg border bg-muted/20">
+                        <span className="text-xs text-muted-foreground block">Start Date</span>
+                        <span className="font-semibold">
+                          {selectedScan.extracted_data.contract_start_date
+                            ? new Date(selectedScan.extracted_data.contract_start_date).toLocaleDateString()
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-lg border bg-muted/20 sm:col-span-3">
+                        <span className="text-xs text-muted-foreground block">Supply Address &amp; Postcode</span>
+                        <span className="font-semibold">
+                          {selectedScan.extracted_data.supply_address || "—"}
+                          {selectedScan.extracted_data.postcode ? ` (${selectedScan.extracted_data.postcode})` : ""}
+                        </span>
+                      </div>
                     </div>
                   ) : (
                     <div className="p-4 rounded-lg border text-center text-xs text-muted-foreground">
@@ -398,7 +445,7 @@ export function ScansPage() {
                       <SelectValue placeholder="Auto-detect or select a contract..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Auto-create or match existing</SelectItem>
+                      <SelectItem value="auto">Auto-create or match existing</SelectItem>
                       {contracts
                         .filter((c: any) => c.user_id === selectedScan.user_id)
                         .map((c: any) => (
