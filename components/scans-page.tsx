@@ -87,6 +87,9 @@ export function ScansPage() {
   })
 
   const filteredScans = scans.filter((s: any) => {
+    // Ignore unconfirmed draft scans that haven't been confirmed/saved by the customer
+    if (s.status === "pending" && !s.submitted_at) return false
+
     const q = searchQuery.toLowerCase()
     const matchesQuery =
       (s.filename || "").toLowerCase().includes(q) ||
@@ -99,6 +102,8 @@ export function ScansPage() {
         ? true
         : statusFilter === "pending"
         ? s.status === "pending_review" || !s.status
+        : statusFilter === "applied"
+        ? s.status === "applied" || s.status === "confirmed"
         : s.status === statusFilter
 
     return matchesQuery && matchesStatus
@@ -115,6 +120,7 @@ export function ScansPage() {
           </Badge>
         )
       case "applied":
+      case "confirmed":
         return (
           <Badge className="bg-emerald-600 text-white font-semibold gap-1">
             <CheckCircle2 className="h-3 w-3" />
@@ -205,7 +211,7 @@ export function ScansPage() {
   ]
 
   const pendingCount = scans.filter((s: any) => s.status === "pending_review" || !s.status).length
-  const appliedCount = scans.filter((s: any) => s.status === "applied").length
+  const appliedCount = scans.filter((s: any) => s.status === "applied" || s.status === "confirmed").length
   const callRequestsCount = scans.filter((s: any) => s.call_requested_at).length
 
   return (
