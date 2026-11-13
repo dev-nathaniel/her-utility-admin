@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -16,15 +17,18 @@ import {
   RefreshCw,
   Building2,
   MessagesSquare,
+  Plus,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient } from "@/lib/api-client"
 import { toast } from "sonner"
+import { AddBusinessDialog } from "./add-business-dialog"
 
 export function DashboardOverview() {
   const queryClient = useQueryClient()
+  const [isAddBusinessOpen, setIsAddBusinessOpen] = useState(false)
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["dashboard-stats"],
@@ -330,6 +334,15 @@ export function DashboardOverview() {
               <CardDescription>Common operations across the portfolio</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2.5">
+              <Button
+                variant="default"
+                className="w-full justify-start gap-2.5 h-11 text-sm font-semibold"
+                onClick={() => setIsAddBusinessOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Business &amp; Site for Customer</span>
+              </Button>
+
               <Button asChild variant="outline" className="w-full justify-start gap-2.5 h-11 text-sm font-medium">
                 <Link href="/dashboard/scans">
                   <FileCheck className="h-4 w-4 text-muted-foreground" />
@@ -387,6 +400,12 @@ export function DashboardOverview() {
           </Card>
         </div>
       </div>
+
+      {/* Add Business & Site Dialog */}
+      <AddBusinessDialog
+        open={isAddBusinessOpen}
+        onOpenChange={setIsAddBusinessOpen}
+      />
     </div>
   )
 }

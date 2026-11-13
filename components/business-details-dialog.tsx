@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
@@ -23,11 +23,14 @@ import {
   Lock,
   Globe,
   Trash2,
+  Loader2,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiClient, type DocumentData } from "@/lib/api-client"
 import { toast } from "sonner"
@@ -43,6 +46,21 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
   const queryClient = useQueryClient()
   const [newNote, setNewNote] = useState("")
   const [isUploadDocOpen, setIsUploadDocOpen] = useState(false)
+
+  // Add Site dialog state
+  const [isAddSiteOpen, setIsAddSiteOpen] = useState(false)
+  const [siteName, setSiteName] = useState("")
+  const [siteAddress, setSiteAddress] = useState("")
+  const [sitePostcode, setSitePostcode] = useState("")
+  const [siteBusinessId, setSiteBusinessId] = useState("")
+
+  // Add Business dialog state
+  const [isAddBusinessOpen, setIsAddBusinessOpen] = useState(false)
+  const [bizCompanyName, setBizCompanyName] = useState("")
+  const [bizType, setBizType] = useState("limited_company")
+  const [bizCompanyNumber, setBizCompanyNumber] = useState("")
+  const [bizTradingName, setBizTradingName] = useState("")
+  const [bizPostcode, setBizPostcode] = useState("")
 
   const businessId = business?.id || business?._id
 
@@ -118,6 +136,55 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
     }
   }
 
+  const addSiteMutation = useMutation({
+    mutationFn: () =>
+      apiClient.addCompanyProperty(businessId, {
+        property_name: siteName.trim() || undefined,
+        address: siteAddress.trim(),
+        postcode: sitePostcode.trim(),
+        business_id: siteBusinessId || undefined,
+      }),
+    onSuccess: () => {
+      toast.success("Site added successfully")
+      setIsAddSiteOpen(false)
+      setSiteName("")
+      setSiteAddress("")
+      setSitePostcode("")
+      setSiteBusinessId("")
+      queryClient.invalidateQueries({ queryKey: ["company-detail", businessId] })
+      queryClient.invalidateQueries({ queryKey: ["companies"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] })
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to add site")
+    },
+  })
+
+  const addBusinessMutation = useMutation({
+    mutationFn: () =>
+      apiClient.addCompanyBusiness(businessId, {
+        company_name: bizCompanyName.trim(),
+        business_type: bizType || "limited_company",
+        company_number: bizCompanyNumber.trim() || undefined,
+        trading_name: bizTradingName.trim() || undefined,
+        postcode: bizPostcode.trim() || undefined,
+      }),
+    onSuccess: () => {
+      toast.success("Business entity added successfully")
+      setIsAddBusinessOpen(false)
+      setBizCompanyName("")
+      setBizType("limited_company")
+      setBizCompanyNumber("")
+      setBizTradingName("")
+      setBizPostcode("")
+      queryClient.invalidateQueries({ queryKey: ["company-detail", businessId] })
+      queryClient.invalidateQueries({ queryKey: ["companies"] })
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail || "Failed to add business entity")
+    },
+  })
+
   if (!business) return null
 
   const comp = detail?.company || business
@@ -171,25 +238,45 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
                 </div>
               </div>
 
-              {/* Pipeline Status Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground font-medium">Pipeline:</span>
-                <Select
-                  value={currentStatus}
-                  onValueChange={(val) => updateStatusMutation.mutate(val)}
-                  disabled={updateStatusMutation.isPending}
+              {/* Quick Actions & Pipeline Status */}
+              <div className="flex items-center gap-2 flex-wrap justify-end">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs font-medium"
+                  onClick={() => setIsAddSiteOpen(true)}
                 >
-                  <SelectTrigger className="w-36 h-8 text-xs font-semibold">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new_lead">New Lead</SelectItem>
-                    <SelectItem value="contacted">Contacted</SelectItem>
-                    <SelectItem value="quote_sent">Quote Sent</SelectItem>
-                    <SelectItem value="customer">Active Customer</SelectItem>
-                    <SelectItem value="lost">Lost</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <MapPin className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>+ Add Site</span>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-xs font-medium"
+                  onClick={() => setIsAddBusinessOpen(true)}
+                >
+                  <Building2 className="h-3.5 w-3.5 text-primary" />
+                  <span>+ Add Business</span>
+                </Button>
+                <div className="flex items-center gap-1.5 pl-1.5 border-l">
+                  <span className="text-xs text-muted-foreground font-medium">Pipeline:</span>
+                  <Select
+                    value={currentStatus}
+                    onValueChange={(val) => updateStatusMutation.mutate(val)}
+                    disabled={updateStatusMutation.isPending}
+                  >
+                    <SelectTrigger className="w-36 h-8 text-xs font-semibold">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new_lead">New Lead</SelectItem>
+                      <SelectItem value="contacted">Contacted</SelectItem>
+                      <SelectItem value="quote_sent">Quote Sent</SelectItem>
+                      <SelectItem value="customer">Active Customer</SelectItem>
+                      <SelectItem value="lost">Lost</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </DialogHeader>
@@ -213,8 +300,36 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
 
               {/* Tab: Sites */}
               <TabsContent value="sites" className="space-y-4 mt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold">Registered Sites &amp; Supply Locations</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Physical customer sites where meters and utility contracts are linked.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 h-8 text-xs font-medium"
+                    onClick={() => setIsAddSiteOpen(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Site
+                  </Button>
+                </div>
+
                 {properties.length === 0 ? (
-                  <div className="py-8 text-center text-sm text-muted-foreground">No sites/properties registered yet.</div>
+                  <div className="py-10 text-center text-xs text-muted-foreground border rounded-lg border-dashed space-y-3">
+                    <p>No sites or properties registered for this customer yet.</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 text-xs font-medium"
+                      onClick={() => setIsAddSiteOpen(true)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Add First Site
+                    </Button>
+                  </div>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {properties.map((p: any) => (
@@ -468,11 +583,21 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
 
               {/* Tab: Info */}
               <TabsContent value="details" className="space-y-4 mt-4">
-                {businesses.length > 0 && (
-                  <div className="space-y-2">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Registered Business Entities ({businesses.length})
                     </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 h-7 text-xs font-medium"
+                      onClick={() => setIsAddBusinessOpen(true)}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Business Entity
+                    </Button>
+                  </div>
                     <div className="grid gap-2 sm:grid-cols-2">
                       {businesses.map((b: any) => (
                         <div key={b.id || b._id} className="p-3 rounded-lg border bg-muted/20">
@@ -541,6 +666,203 @@ export function BusinessDetailsDialog({ business, open, onOpenChange }: Business
           queryClient.invalidateQueries({ queryKey: ["company-documents", businessId] })
         }}
       />
+
+      {/* Add Site Modal Dialog */}
+      <Dialog open={isAddSiteOpen} onOpenChange={setIsAddSiteOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <span>Add Site for {comp.company_name || comp.name}</span>
+            </DialogTitle>
+            <DialogDescription>
+              Register a physical property or branch to manage utility meters and supply contracts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!siteAddress.trim() || !sitePostcode.trim()) {
+                toast.error("Address and Postcode are required")
+                return
+              }
+              addSiteMutation.mutate()
+            }}
+            className="space-y-3.5 py-2"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="site-name">Site / Location Name (Optional)</Label>
+              <Input
+                id="site-name"
+                placeholder="e.g. Head Office, Warehouse 2, High St Shop"
+                value={siteName}
+                onChange={(e) => setSiteName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="site-address">Supply Address <span className="text-destructive">*</span></Label>
+              <Input
+                id="site-address"
+                placeholder="e.g. 14 High Street, Manchester"
+                value={siteAddress}
+                onChange={(e) => setSiteAddress(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="site-postcode">Postcode <span className="text-destructive">*</span></Label>
+              <Input
+                id="site-postcode"
+                placeholder="e.g. M1 4BT"
+                value={sitePostcode}
+                onChange={(e) => setSitePostcode(e.target.value.toUpperCase())}
+                required
+                className="font-mono uppercase"
+              />
+            </div>
+
+            {businesses.length > 1 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="site-biz">Associate with Business Entity</Label>
+                <Select value={siteBusinessId} onValueChange={setSiteBusinessId}>
+                  <SelectTrigger id="site-biz">
+                    <SelectValue placeholder="Select business entity (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {businesses.map((b: any) => (
+                      <SelectItem key={b.id || b._id} value={b.id || b._id}>
+                        {b.company_name} {b.is_primary ? "(Primary)" : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <DialogFooter className="pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddSiteOpen(false)}
+                disabled={addSiteMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addSiteMutation.isPending}>
+                {addSiteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Add Site
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Business Entity Modal Dialog */}
+      <Dialog open={isAddBusinessOpen} onOpenChange={setIsAddBusinessOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <span>Add Business for {comp.company_name || comp.name}</span>
+            </DialogTitle>
+            <DialogDescription>
+              Register an additional company, trading entity, or subsidiary under this customer account.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!bizCompanyName.trim()) {
+                toast.error("Company Name is required")
+                return
+              }
+              addBusinessMutation.mutate()
+            }}
+            className="space-y-3.5 py-2"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="biz-name">Company / Business Name <span className="text-destructive">*</span></Label>
+              <Input
+                id="biz-name"
+                placeholder="e.g. Acme Logistics Ltd"
+                value={bizCompanyName}
+                onChange={(e) => setBizCompanyName(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="biz-type">Business Type</Label>
+              <Select value={bizType} onValueChange={setBizType}>
+                <SelectTrigger id="biz-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="limited_company">Limited Company (LTD)</SelectItem>
+                  <SelectItem value="sole_trader">Sole Trader</SelectItem>
+                  <SelectItem value="partnership">Partnership</SelectItem>
+                  <SelectItem value="llp">Limited Liability Partnership (LLP)</SelectItem>
+                  <SelectItem value="charity">Charity / Not-for-Profit</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="biz-reg">Company Reg No.</Label>
+                <Input
+                  id="biz-reg"
+                  placeholder="e.g. 12345678"
+                  value={bizCompanyNumber}
+                  onChange={(e) => setBizCompanyNumber(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="biz-trading">Trading Name</Label>
+                <Input
+                  id="biz-trading"
+                  placeholder="e.g. Acme Express"
+                  value={bizTradingName}
+                  onChange={(e) => setBizTradingName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="biz-postcode">Registered Postcode</Label>
+              <Input
+                id="biz-postcode"
+                placeholder="e.g. SW1A 1AA"
+                value={bizPostcode}
+                onChange={(e) => setBizPostcode(e.target.value.toUpperCase())}
+                className="font-mono uppercase"
+              />
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddBusinessOpen(false)}
+                disabled={addBusinessMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addBusinessMutation.isPending}>
+                {addBusinessMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Add Business
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

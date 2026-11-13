@@ -4,11 +4,12 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { MapPin, Zap, Search, Building2, Eye, Filter } from "lucide-react"
+import { MapPin, Zap, Search, Building2, Eye, Filter, Plus } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { BusinessDetailsDialog } from "./business-details-dialog"
+import { AddBusinessDialog } from "./add-business-dialog"
 import { useQuery } from "@tanstack/react-query"
 import { apiClient, type CompanyData } from "@/lib/api-client"
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table"
@@ -19,6 +20,7 @@ export function BusinessesPage() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "")
   const [statusFilter, setStatusFilter] = useState("all")
   const [selectedBusiness, setSelectedBusiness] = useState<any | null>(null)
+  const [isAddBusinessOpen, setIsAddBusinessOpen] = useState(false)
 
   useEffect(() => {
     const q = searchParams.get("search")
@@ -190,6 +192,10 @@ export function BusinessesPage() {
             Manage business client accounts, utility portfolios, and sales pipeline stages.
           </p>
         </div>
+        <Button onClick={() => setIsAddBusinessOpen(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          <span>Add Business &amp; Site</span>
+        </Button>
       </div>
 
       {/* Summary KPI Cards */}
@@ -276,6 +282,12 @@ export function BusinessesPage() {
           onOpenChange={(open) => !open && setSelectedBusiness(null)}
         />
       )}
+
+      {/* Add Business & Site Dialog */}
+      <AddBusinessDialog
+        open={isAddBusinessOpen}
+        onOpenChange={setIsAddBusinessOpen}
+      />
     </div>
   )
 }

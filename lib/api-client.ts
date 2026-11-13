@@ -573,6 +573,47 @@ export const apiClient = {
     return response.data
   },
 
+  addCompanyProperty: async (
+    companyId: string,
+    data: { property_name?: string; address: string; postcode: string; business_id?: string }
+  ): Promise<any> => {
+    const response = await axiosInstance.post(`/admin/companies/${companyId}/properties`, data)
+    return response.data
+  },
+
+  addCompanyBusiness: async (
+    companyId: string,
+    data: {
+      company_name: string
+      business_type?: string
+      company_number?: string
+      trading_name?: string
+      vat_number?: string
+      charity_number?: string
+      postcode?: string
+    }
+  ): Promise<any> => {
+    const response = await axiosInstance.post(`/admin/companies/${companyId}/businesses`, data)
+    return response.data
+  },
+
+  createCompanyCustomer: async (data: {
+    company_name: string
+    email: string
+    full_name?: string
+    business_type?: string
+    company_number?: string
+    trading_name?: string
+    address?: string
+    postcode?: string
+    initial_site_name?: string
+    initial_site_address?: string
+    initial_site_postcode?: string
+  }): Promise<any> => {
+    const response = await axiosInstance.post("/admin/companies", data)
+    return response.data
+  },
+
   assignCompanyBroker: async (companyId: string, brokerId: string): Promise<any> => {
     const response = await axiosInstance.put(`/admin/companies/${companyId}/broker`, { broker_id: brokerId })
     return response.data
@@ -638,7 +679,29 @@ export const apiClient = {
   // Bill Scans (OCR Review Queue)
   getScans: async (): Promise<ScanData[]> => {
     const response = await axiosInstance.get("/admin/scans")
-    return (response.data || []).map((s: any) => ({ ...s, _id: s.id }))
+    return (response.data || []).map((s: any) => {
+      const ex = s.extracted || s.extracted_data || {}
+      return {
+        ...s,
+        _id: s.id,
+        filename: s.original_filename || s.filename,
+        customer_company: s.user_company || (s.extracted && s.extracted.legal_entity_name) || s.customer_company,
+        customer_name: s.user_full_name || s.customer_name,
+        customer_email: s.user_email || s.customer_email,
+        extracted_data: {
+          supplier: ex.supplier_name || ex.supplier,
+          utility_type: ex.utility_type,
+          account_number: ex.account_number,
+          meter_number: ex.meter_serial_number || ex.meter_number,
+          mpan_mprn: ex.mpan_or_mprn || ex.mpan || ex.mprn,
+          contract_end_date: ex.contract_end_date,
+          standing_charge: ex.standing_charge_p_per_day || ex.standing_charge,
+          unit_rate: ex.unit_rate_p_per_kwh || ex.unit_rate,
+          total_amount: ex.annual_usage_kwh ? `${ex.annual_usage_kwh.toLocaleString()} kWh/yr` : undefined,
+          ...ex,
+        },
+      }
+    })
   },
 
   getPendingScans: async (): Promise<ScanData[]> => {
